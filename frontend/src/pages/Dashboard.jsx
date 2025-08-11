@@ -1,0 +1,1461 @@
+import React, { useState, useEffect } from 'react';
+import { FaUserCircle, FaEdit, FaSave, FaTools, FaLightbulb, FaWallet, FaCalendarAlt, FaStar, FaCamera, FaMedal, FaShareAlt, FaCog, FaLink, FaCopy, FaBell, FaCheckCircle, FaExchangeAlt, FaComments, FaPlus, FaTrash, FaTimes, FaClock } from 'react-icons/fa';
+import { useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import userService from '../services/userService';
+import NotificationService from '../services/notificationService';
+import referralService from '../services/referralService';
+import webinarService from '../services/webinarService';
+import Calendar from '../components/Calendar';
+
+const tabList = [
+  { key: 'skills', label: 'My Skills', icon: <FaTools /> },
+  { key: 'wants', label: 'Skills I Want', icon: <FaLightbulb /> },
+  { key: 'links', label: 'My Links', icon: <FaLink /> },
+  { key: 'wallet', label: 'My Time Balance', icon: <FaWallet /> },
+  { key: 'swaps', label: 'My Swaps', icon: <FaCalendarAlt /> },
+  { key: 'webinars', label: 'Webinars', icon: <FaCamera /> },
+  { key: 'reputation', label: 'Reputation', icon: <FaStar /> },
+  { key: 'badges', label: 'Achievements', icon: <FaMedal /> },
+  { key: 'referral', label: 'Invite Friends', icon: <FaShareAlt /> },
+  { key: 'calendar', label: 'Calendar', icon: <FaCalendarAlt /> },
+  { key: 'settings', label: 'Settings', icon: <FaCog /> },
+  { key: 'notifications', label: 'Notifications', icon: <FaBell /> },
+];
+
+const Dashboard = () => {
+  const location = useLocation();
+  const { user: authUser, token, fetchUnreadCount } = useAuth();
+  
+  // User data state - starts empty
+  const [user, setUser] = useState({
+    name: authUser ? `${authUser.firstName} ${authUser.lastName}` : '',
+    bio: '',
+    city: '',
+    age: '',
+    language: '',
+    profilePic: '',
+    skills: [],
+    wants: [],
+    timeBalance: 0,
+    swaps: [],
+    reputation: 0,
+    reviews: 0,
+    badges: [],
+    achievements: {
+      badges: [],
+      totalBadges: 0,
+      level: 1,
+      experience: 0
+    },
+    referral: `https://skillswap.com/invite/${authUser?.username || 'user'}`,
+    links: [],
+    projects: [],
+    notifications: []
+  });
+
+  const [editProfile, setEditProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: '',
+    bio: '',
+    city: '',
+    age: '',
+    language: '',
+    profilePic: '',
+    links: []
+  });
+  const [activeTab, setActiveTab] = useState('skills');
+  const [profilePicPreview, setProfilePicPreview] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [calendarSwaps, setCalendarSwaps] = useState([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [referralStats, setReferralStats] = useState({
+    referralCode: '',
+    referralStats: {
+      totalReferrals: 0,
+      successfulReferrals: 0,
+      creditsEarned: 0
+    }
+  });
+  const [referralLoading, setReferralLoading] = useState(false);
+  const [myWebinars, setMyWebinars] = useState([]);
+  const [webinarsLoading, setWebinarsLoading] = useState(false);
+  const [showCreateWebinar, setShowCreateWebinar] = useState(false);
+  const [editingWebinarId, setEditingWebinarId] = useState(null);
+  const [webinarForm, setWebinarForm] = useState({
+    title: '',
+    description: '',
+    topic: '',
+    scheduledDate: '',
+    duration: 60,
+    maxParticipants: 50,
+    tags: [],
+    isPublic: true,
+    price: 0
+  });
+
+
+
+  // Load notifications
+  const loadNotifications = async () => {
+    if (token) {
+      try {
+        setNotificationsLoading(true);
+        const response = await NotificationService.getNotifications(token);
+        const safeList = Array.isArray(response.notifications) ? response.notifications : [];
+        setNotifications(safeList);
+      } catch (error) {
+        console.error('Failed to load notifications:', error);
+      } finally {
+        setNotificationsLoading(false);
+      }
+    }
+  };
+
+  // Mark notification as read
+  const handleMarkAsRead = async (notificationId) => {
+    if (token) {
+      try {
+        await NotificationService.markAsRead(token, notificationId);
+        // Update local state
+        setNotifications(prev => prev.map(n => 
+          n._id === notificationId ? { ...n, isRead: true } : n
+        ));
+        // Refresh unread count
+        fetchUnreadCount();
+      } catch (error) {
+        console.error('Failed to mark notification as read:', error);
+      }
+    }
+  };
+
+  // Delete notification
+  const handleDeleteNotification = async (notificationId) => {
+    if (token) {
+      try {
+        await NotificationService.deleteNotification(token, notificationId);
+        // Remove from local state
+        setNotifications(prev => prev.filter(n => n._id !== notificationId));
+        // Refresh unread count
+        fetchUnreadCount();
+      } catch (error) {
+        console.error('Failed to delete notification:', error);
+      }
+    }
+  };
+
+  // Load user data from backend on component mount
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (authUser && token) {
+        try {
+          setLoading(true);
+          const result = await userService.getCurrentUser(token);
+          if (result.success) {
+            const backendUser = result.user;
+            setUser({
+              name: `${backendUser.firstName} ${backendUser.lastName}`,
+              bio: backendUser.bio || '',
+              city: backendUser.location || '',
+              age: backendUser.age || '',
+              language: backendUser.language || '',
+              profilePic: backendUser.profilePicture || '',
+              skills: backendUser.skills.map(skill => skill.name),
+              wants: backendUser.skillsToLearn.map(skill => skill.name),
+              timeBalance: backendUser.wallet?.balance || 0,
+              swaps: [],
+              reputation: backendUser.rating?.average || 0,
+              reviews: backendUser.rating?.count || 0,
+              badges: backendUser.achievements?.badges || [],
+              achievements: backendUser.achievements || {
+                badges: [],
+                totalBadges: 0,
+                level: 1,
+                experience: 0
+              },
+              referral: `https://skillswap.com/invite/${backendUser.username}`,
+              links: backendUser.links || [],
+              projects: [],
+              notifications: []
+            });
+            setProfileForm({
+              name: `${backendUser.firstName} ${backendUser.lastName}`,
+              bio: backendUser.bio || '',
+              city: backendUser.location || '',
+              age: backendUser.age || '',
+              language: backendUser.language || '',
+              profilePic: backendUser.profilePicture || '',
+              links: backendUser.links || []
+            });
+            setProfilePicPreview(backendUser.profilePicture || '');
+          } else {
+            setError('Failed to load user data');
+          }
+        } catch (error) {
+          setError('Error loading user data');
+          console.error('Error loading user data:', error);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
+      }
+    };
+
+    loadUserData();
+  }, [authUser, token]);
+
+  useEffect(() => {
+    if (location.state && location.state.openTab) {
+      setActiveTab(location.state.openTab);
+    }
+  }, [location.state]);
+
+  // Load notifications when notifications tab is active
+  useEffect(() => {
+    if (activeTab === 'notifications') {
+      loadNotifications();
+    }
+  }, [activeTab]);
+
+  // Load calendar events when calendar tab is active
+  useEffect(() => {
+    if (activeTab === 'calendar') {
+      loadCalendarEvents();
+    }
+  }, [activeTab]);
+
+  // Load achievements when badges tab is active
+  useEffect(() => {
+    if (activeTab === 'badges') {
+      loadAchievements();
+    }
+  }, [activeTab]);
+
+  // Load referral stats when referral tab is active
+  useEffect(() => {
+    if (activeTab === 'referral') {
+      loadReferralStats();
+    }
+    if (activeTab === 'webinars') {
+      loadMyWebinars();
+    }
+  }, [activeTab]);
+
+  // Check for new achievements when component mounts
+  useEffect(() => {
+    if (token && user.name) {
+      checkNewAchievements();
+    }
+  }, [token, user.name]);
+
+  // Load calendar events
+  const loadCalendarEvents = async () => {
+    if (token) {
+      try {
+        setCalendarLoading(true);
+        const currentDate = new Date();
+        const result = await userService.getCalendarEvents(token, currentDate.getMonth() + 1, currentDate.getFullYear());
+        if (result.success) {
+          setCalendarSwaps(result.swaps);
+        }
+      } catch (error) {
+        console.error('Failed to load calendar events:', error);
+      } finally {
+        setCalendarLoading(false);
+      }
+    }
+  };
+
+  // Load referral statistics
+  const loadReferralStats = async () => {
+    if (token) {
+      try {
+        setReferralLoading(true);
+        const response = await referralService.getReferralStats(token);
+        if (response.success) {
+          setReferralStats(response);
+        }
+      } catch (error) {
+        console.error('Failed to load referral stats:', error);
+      } finally {
+        setReferralLoading(false);
+      }
+    }
+  };
+
+  const loadMyWebinars = async () => {
+    if (token) {
+      try {
+        setWebinarsLoading(true);
+        const response = await webinarService.getMyWebinars(token);
+        if (response.success) {
+          setMyWebinars(response.webinars);
+        }
+      } catch (error) {
+        console.error('Failed to load my webinars:', error);
+      } finally {
+        setWebinarsLoading(false);
+      }
+    }
+  };
+
+  // Load achievements
+  const loadAchievements = async () => {
+    if (token) {
+      try {
+        const result = await userService.getAchievements(token);
+        if (result.success) {
+          setUser(prev => ({
+            ...prev,
+            achievements: result.achievements,
+            badges: result.achievements.badges,
+            reputation: result.rating.average,
+            reviews: result.rating.count
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to load achievements:', error);
+      }
+    }
+  };
+
+  // Check for new achievements
+  const checkNewAchievements = async () => {
+    if (token) {
+      try {
+        const result = await userService.checkAchievements(token);
+        if (result.success && result.newAchievements.length > 0) {
+          setUser(prev => ({
+            ...prev,
+            achievements: result.achievements,
+            badges: result.achievements.badges
+          }));
+          setSuccess(`🎉 New achievements earned: ${result.newAchievements.map(a => a.name).join(', ')}`);
+          setTimeout(() => setSuccess(''), 5000);
+        }
+      } catch (error) {
+        console.error('Failed to check achievements:', error);
+      }
+    }
+  };
+
+  // Handle adding calendar event
+  const handleAddCalendarEvent = async (eventData) => {
+    if (token) {
+      try {
+        // For now, we'll just show a success message
+        // In a real implementation, this would create a new swap or schedule an existing one
+        setSuccess('Event added to calendar!');
+        setTimeout(() => setSuccess(''), 3000);
+        
+        // Reload calendar events
+        await loadCalendarEvents();
+      } catch (error) {
+        console.error('Failed to add calendar event:', error);
+        setError('Failed to add event to calendar');
+        setTimeout(() => setError(''), 3000);
+      }
+    }
+  };
+
+  // Handlers
+  const handleProfileChange = e => {
+    setProfileForm({ ...profileForm, [e.target.name]: e.target.value });
+  };
+
+  const handleProfileSave = async () => {
+    if (!token) return;
+    
+    try {
+      setSaving(true);
+      setError('');
+      
+      const profileData = {
+        firstName: profileForm.name.split(' ')[0] || authUser.firstName,
+        lastName: profileForm.name.split(' ').slice(1).join(' ') || authUser.lastName,
+        bio: profileForm.bio,
+        location: profileForm.city,
+        profilePicture: profilePicPreview,
+        links: profileForm.links
+      };
+
+      const result = await userService.updateProfile(token, profileData);
+      
+             if (result.success) {
+         // Update user state with the response from backend
+         setUser({ 
+           ...user, 
+           ...profileForm, 
+           profilePic: profilePicPreview,
+           links: result.user.links || profileForm.links
+         });
+         setEditProfile(false);
+         setSuccess('Profile updated successfully!');
+         setTimeout(() => setSuccess(''), 3000);
+       } else {
+        setError(result.error || 'Failed to update profile');
+      }
+    } catch (error) {
+      setError('Error updating profile');
+      console.error('Error updating profile:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSkillChange = (idx, value) => {
+    const newSkills = [...user.skills];
+    newSkills[idx] = value;
+    setUser({ ...user, skills: newSkills });
+  };
+
+  const handleAddSkill = () => {
+    setUser({ ...user, skills: [...user.skills, ''] });
+  };
+
+  const handleRemoveSkill = (idx) => {
+    const newSkills = user.skills.filter((_, i) => i !== idx);
+    setUser({ ...user, skills: newSkills });
+  };
+
+  const handleSaveSkills = async () => {
+    if (!token) return;
+    
+    try {
+      setSaving(true);
+      setError('');
+      
+      const skillsData = {
+        skills: user.skills.filter(skill => skill.trim() !== '').map(skill => ({
+          name: skill.trim(),
+          level: 'beginner'
+        })),
+        skillsToLearn: user.wants.filter(want => want.trim() !== '').map(want => ({
+          name: want.trim(),
+          priority: 'medium'
+        }))
+      };
+
+      const result = await userService.updateSkills(token, skillsData);
+      
+      if (result.success) {
+        setSuccess('Skills updated successfully!');
+        setTimeout(() => setSuccess(''), 3000);
+        
+        // Check for new achievements after updating skills
+        await checkNewAchievements();
+      } else {
+        setError(result.error || 'Failed to update skills');
+      }
+    } catch (error) {
+      setError('Error updating skills');
+      console.error('Error updating skills:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleWantChange = (idx, value) => {
+    const newWants = [...user.wants];
+    newWants[idx] = value;
+    setUser({ ...user, wants: newWants });
+  };
+
+  const handleAddWant = () => {
+    setUser({ ...user, wants: [...user.wants, ''] });
+  };
+
+  const handleRemoveWant = (idx) => {
+    const newWants = user.wants.filter((_, i) => i !== idx);
+    setUser({ ...user, wants: newWants });
+  };
+
+  // Links management
+  const handleLinkChange = (idx, field, value) => {
+    const newLinks = [...profileForm.links];
+    newLinks[idx] = { ...newLinks[idx], [field]: value };
+    setProfileForm({ ...profileForm, links: newLinks });
+  };
+
+  const handleAddLink = () => {
+    setProfileForm({
+      ...profileForm,
+      links: [...profileForm.links, { label: '', url: '' }]
+    });
+  };
+
+  const handleRemoveLink = (idx) => {
+    const newLinks = profileForm.links.filter((_, i) => i !== idx);
+    setProfileForm({ ...profileForm, links: newLinks });
+  };
+
+  const handleWebinarFormChange = (field, value) => {
+    setWebinarForm({ ...webinarForm, [field]: value });
+  };
+
+  const handleCreateWebinar = async () => {
+    if (!token) return;
+    
+    try {
+      setSaving(true);
+      
+      // Ensure date is properly formatted
+      const formData = {
+        ...webinarForm,
+        scheduledDate: new Date(webinarForm.scheduledDate).toISOString()
+      };
+      
+      let response;
+      
+      if (editingWebinarId) {
+        // Update existing webinar
+        console.log('Updating webinar with data:', formData);
+        response = await webinarService.updateWebinar(token, editingWebinarId, formData);
+        console.log('Webinar update response:', response);
+      } else {
+        // Create new webinar
+        console.log('Creating webinar with data:', formData);
+        response = await webinarService.createWebinar(token, formData);
+        console.log('Webinar creation response:', response);
+      }
+      
+      if (response.success) {
+        setSuccess(editingWebinarId ? 'Webinar updated successfully!' : 'Webinar created successfully!');
+        setShowCreateWebinar(false);
+        setEditingWebinarId(null);
+        setWebinarForm({
+          title: '',
+          description: '',
+          topic: '',
+          scheduledDate: '',
+          duration: 60,
+          maxParticipants: 50,
+          tags: [],
+          isPublic: true,
+          price: 0
+        });
+        loadMyWebinars();
+      } else {
+        setError(response.error || (editingWebinarId ? 'Failed to update webinar' : 'Failed to create webinar'));
+      }
+    } catch (error) {
+      console.error('Webinar operation error:', error);
+      setError((editingWebinarId ? 'Failed to update webinar: ' : 'Failed to create webinar: ') + error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+
+
+  const handleEditWebinar = async (webinarId) => {
+    // Find the webinar to edit
+    const webinarToEdit = myWebinars.find(w => w._id === webinarId);
+    if (webinarToEdit) {
+      setWebinarForm({
+        title: webinarToEdit.title,
+        description: webinarToEdit.description,
+        topic: webinarToEdit.topic,
+        scheduledDate: new Date(webinarToEdit.scheduledDate).toISOString().slice(0, 16),
+        duration: webinarToEdit.duration,
+        maxParticipants: webinarToEdit.maxParticipants,
+        tags: webinarToEdit.tags || [],
+        isPublic: webinarToEdit.isPublic,
+        price: webinarToEdit.price
+      });
+      setShowCreateWebinar(true);
+      // Store the webinar ID for editing
+      setEditingWebinarId(webinarId);
+    }
+  };
+
+  const handleDeleteWebinar = async (webinarId) => {
+    if (!token) return;
+    
+    if (!window.confirm('Are you sure you want to delete this webinar?')) {
+      return;
+    }
+    
+    try {
+      const response = await webinarService.deleteWebinar(token, webinarId);
+      if (response.success) {
+        setSuccess('Webinar deleted successfully!');
+        loadMyWebinars();
+      } else {
+        setError(response.error);
+      }
+    } catch (error) {
+      setError('Failed to delete webinar');
+    }
+  };
+
+  const handleProfilePicChange = e => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfilePicPreview(reader.result);
+        setProfileForm({ ...profileForm, profilePic: reader.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center min-vh-100">
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="dashboard-bg min-vh-100 py-5" style={{background:'linear-gradient(135deg,#e0eafc 0%,#cfdef3 100%)'}}>
+      <div className="container">
+        {error && (
+          <div className="alert alert-danger alert-dismissible fade show" role="alert">
+            {error}
+            <button type="button" className="btn-close" onClick={() => setError('')}></button>
+          </div>
+        )}
+        {success && (
+          <div className="alert alert-success alert-dismissible fade show" role="alert">
+            {success}
+            <button type="button" className="btn-close" onClick={() => setSuccess('')}></button>
+          </div>
+        )}
+        
+        <div className="row g-4">
+          {/* Profile Section */}
+          <div className="col-lg-4">
+            <div className="p-4 rounded-4 shadow-lg profile-section" style={{background:'linear-gradient(135deg,#43cea2 0%,#185a9d 100%)', color:'#fff'}}>
+              <div className="text-center mb-3 position-relative">
+                {profilePicPreview ? (
+                  <img src={profilePicPreview} alt="Profile" className="rounded-circle mb-2" style={{width:'100px',height:'100px',objectFit:'cover',border:'3px solid #fff'}} />
+                ) : (
+                  <FaUserCircle size={100} className="mb-2" />
+                )}
+                {editProfile && (
+                  <label htmlFor="profilePicInput" className="position-absolute" style={{bottom:'10px',right:'calc(50% - 30px)',cursor:'pointer',background:'#fff',borderRadius:'50%',padding:'6px',boxShadow:'0 2px 8px rgba(24,90,157,0.10)'}}>
+                    <FaCamera size={20} color="#185a9d" />
+                    <input id="profilePicInput" type="file" accept="image/*" style={{display:'none'}} onChange={handleProfilePicChange} />
+                  </label>
+                )}
+              </div>
+              {editProfile ? (
+                <>
+                  <input className="form-control mb-2" name="name" value={profileForm.name} onChange={handleProfileChange} placeholder="Name" />
+                  <textarea className="form-control mb-2" name="bio" value={profileForm.bio} onChange={handleProfileChange} placeholder="Tell us about yourself..." />
+                  <input className="form-control mb-2" name="city" value={profileForm.city} onChange={handleProfileChange} placeholder="City" />
+                  <input className="form-control mb-2" name="age" value={profileForm.age} onChange={handleProfileChange} placeholder="Age" type="number" />
+                  <input className="form-control mb-2" name="language" value={profileForm.language} onChange={handleProfileChange} placeholder="Languages" />
+                  
+                  {/* Links Section */}
+                  <div className="mb-3">
+                    <label className="form-label fw-bold">Links</label>
+                    {profileForm.links.map((link, idx) => (
+                      <div key={idx} className="d-flex gap-2 mb-2">
+                        <input 
+                          className="form-control" 
+                          placeholder="Label (e.g., Portfolio)" 
+                          value={link.label} 
+                          onChange={e => handleLinkChange(idx, 'label', e.target.value)} 
+                        />
+                        <input 
+                          className="form-control" 
+                          placeholder="URL" 
+                          value={link.url} 
+                          onChange={e => handleLinkChange(idx, 'url', e.target.value)} 
+                        />
+                        <button 
+                          className="btn btn-outline-danger btn-sm" 
+                          onClick={() => handleRemoveLink(idx)}
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
+                    ))}
+                    <button 
+                      className="btn btn-outline-light btn-sm" 
+                      onClick={handleAddLink}
+                    >
+                      <FaPlus className="me-1" />Add Link
+                    </button>
+                  </div>
+                  
+                  <button className="btn btn-light w-100 mt-2" onClick={handleProfileSave} disabled={saving}>
+                    {saving ? 'Saving...' : <><FaSave className="me-1" />Save</>}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h4 className="fw-bold mb-1">{user.name || 'Your Name'}</h4>
+                  <div className="mb-2">{user.bio || 'No bio yet. Click edit to add one!'}</div>
+                  <div className="mb-2">
+                    {user.city && <span className="badge bg-light text-primary me-2">{user.city}</span>}
+                    {user.age && <span className="badge bg-light text-primary me-2">{user.age} yrs</span>}
+                    {user.language && <span className="badge bg-light text-primary">{user.language}</span>}
+                  </div>
+                  {user.links && user.links.length > 0 && (
+                    <div className="mb-2">
+                      {user.links.map((link, idx) => (
+                        <a 
+                          key={idx} 
+                          href={link.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="badge bg-light text-primary me-2 d-inline-block mb-1"
+                          style={{textDecoration: 'none'}}
+                        >
+                          <FaLink className="me-1" />
+                          {link.label}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-3 mb-2">
+                    <span className="me-2"><FaStar className="text-warning" /> <b>{user.reputation}</b></span>
+                    <span className="text-light">({user.reviews} reviews)</span>
+                  </div>
+                  <button className="btn btn-outline-light w-100" onClick={()=>setEditProfile(true)}><FaEdit className="me-1" />Edit Profile</button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Main Content - Tabs */}
+          <div className="col-lg-8">
+            <div className="rounded-4 shadow-lg p-4" style={{background:'#fff', minHeight:'420px'}}>
+              <div className="d-flex mb-4 gap-2 flex-wrap">
+                {tabList.map(tab => (
+                  <button key={tab.key} className={`btn ${activeTab===tab.key ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center gap-2`} onClick={()=>setActiveTab(tab.key)}>
+                    {tab.icon} {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab Content */}
+              {activeTab==='skills' && (
+                <div>
+                  <h5 className="mb-3">Skills you can teach/share</h5>
+                  {user.skills.length === 0 ? (
+                    <div className="text-center text-secondary py-4">
+                      <FaTools size={48} className="mb-3" />
+                      <p>No skills added yet. Add your first skill to get started!</p>
+                    </div>
+                  ) : (
+                    user.skills.map((skill, idx) => (
+                      <div key={idx} className="d-flex align-items-center mb-2">
+                        <input className="form-control me-2" value={skill} onChange={e=>handleSkillChange(idx, e.target.value)} placeholder="Enter skill name" />
+                        <button className="btn btn-outline-danger btn-sm" onClick={()=>handleRemoveSkill(idx)}><FaTrash /></button>
+                      </div>
+                    ))
+                  )}
+                  <div className="d-flex gap-2 mt-3">
+                    <button className="btn btn-outline-success" onClick={handleAddSkill}><FaPlus className="me-1" />Add Skill</button>
+                    {user.skills.length > 0 && (
+                      <button className="btn btn-primary" onClick={handleSaveSkills} disabled={saving}>
+                        {saving ? 'Saving...' : 'Save Skills'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab==='wants' && (
+                <div>
+                  <h5 className="mb-3">Skills you want to learn</h5>
+                  {user.wants.length === 0 ? (
+                    <div className="text-center text-secondary py-4">
+                      <FaLightbulb size={48} className="mb-3" />
+                      <p>No skills to learn added yet. Add skills you want to learn!</p>
+                    </div>
+                  ) : (
+                    user.wants.map((want, idx) => (
+                      <div key={idx} className="d-flex align-items-center mb-2">
+                        <input className="form-control me-2" value={want} onChange={e=>handleWantChange(idx, e.target.value)} placeholder="Enter skill name" />
+                        <button className="btn btn-outline-danger btn-sm" onClick={()=>handleRemoveWant(idx)}><FaTrash /></button>
+                      </div>
+                    ))
+                  )}
+                  <div className="d-flex gap-2 mt-3">
+                    <button className="btn btn-outline-info" onClick={handleAddWant}><FaPlus className="me-1" />Add Skill to Learn</button>
+                    {user.wants.length > 0 && (
+                      <button className="btn btn-primary" onClick={handleSaveSkills} disabled={saving}>
+                        {saving ? 'Saving...' : 'Save Skills'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab==='wallet' && (
+                <div className="text-center">
+                  <h5 className="mb-3">Your Time Credits Wallet</h5>
+                  <div className="display-4 fw-bold mb-2" style={{color:'#185a9d'}}>{user.timeBalance} <span style={{fontSize:'1.1rem',color:'#43cea2'}}>credits</span></div>
+                  <div className="text-secondary">Earn credits by teaching, spend them to learn!</div>
+                  <div className="mt-4">
+                    <p className="text-muted">Start adding skills and connecting with others to earn your first credits!</p>
+                  </div>
+                </div>
+              )}
+
+              {activeTab==='links' && (
+                <div>
+                  <h5 className="mb-3">Your Links</h5>
+                  {user.links.length === 0 ? (
+                    <div className="text-center text-secondary py-4">
+                      <FaLink size={48} className="mb-3" />
+                      <p>No links added yet. Add your portfolio, social media, or other important links!</p>
+                    </div>
+                  ) : (
+                    <div className="row g-3">
+                      {user.links.map((link, idx) => (
+                        <div key={idx} className="col-md-6">
+                          <div className="card border-0 shadow-sm">
+                            <div className="card-body">
+                              <div className="d-flex justify-content-between align-items-start">
+                                <div className="flex-grow-1">
+                                  <h6 className="card-title mb-1">{link.label}</h6>
+                                  <a 
+                                    href={link.url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-decoration-none text-primary"
+                                  >
+                                    {link.url}
+                                  </a>
+                                </div>
+                                <a 
+                                  href={link.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="btn btn-outline-primary btn-sm"
+                                >
+                                  <FaLink />
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-3">
+                    <p className="text-muted">
+                      <small>💡 Tip: Add your portfolio, LinkedIn, GitHub, or other professional links to help others discover your work!</small>
+                    </p>
+                  </div>
+                </div>
+              )}
+
+                             {activeTab==='swaps' && (
+                 <div>
+                   <h5 className="mb-3">Your Swaps</h5>
+                   <div className="text-center text-secondary py-4">
+                     <FaExchangeAlt size={48} className="mb-3" />
+                     <p>Manage your skill swaps and track your exchanges!</p>
+                     <a href="/swaps" className="btn btn-primary">
+                       <FaExchangeAlt className="me-2" />
+                       View My Swaps
+                     </a>
+                   </div>
+                 </div>
+               )}
+
+              {activeTab==='webinars' && (
+                <div>
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <h5>Webinar Management</h5>
+                    <button 
+                      className="btn btn-primary"
+                      onClick={() => setShowCreateWebinar(true)}
+                    >
+                      <FaPlus className="me-2" />
+                      Host New Webinar
+                    </button>
+                  </div>
+
+                  {/* Create Webinar Modal */}
+                  {showCreateWebinar && (
+                    <div className="modal fade show d-block" style={{backgroundColor: 'rgba(0,0,0,0.5)'}}>
+                      <div className="modal-dialog modal-lg">
+                        <div className="modal-content">
+                          <div className="modal-header">
+                            <h5 className="modal-title">{editingWebinarId ? 'Edit Webinar' : 'Host New Webinar'}</h5>
+                            <button 
+                              type="button" 
+                              className="btn-close" 
+                              onClick={() => {
+                                setShowCreateWebinar(false);
+                                setEditingWebinarId(null);
+                                setWebinarForm({
+                                  title: '',
+                                  description: '',
+                                  topic: '',
+                                  scheduledDate: '',
+                                  duration: 60,
+                                  maxParticipants: 50,
+                                  tags: [],
+                                  isPublic: true,
+                                  price: 0
+                                });
+                              }}
+                            ></button>
+                          </div>
+                          <div className="modal-body">
+                            <div className="row">
+                              <div className="col-md-6 mb-3">
+                                <label className="form-label">Title *</label>
+                                <input 
+                                  type="text" 
+                                  className="form-control"
+                                  value={webinarForm.title}
+                                  onChange={(e) => handleWebinarFormChange('title', e.target.value)}
+                                  placeholder="Enter webinar title"
+                                />
+                              </div>
+                              <div className="col-md-6 mb-3">
+                                <label className="form-label">Topic *</label>
+                                <input 
+                                  type="text" 
+                                  className="form-control"
+                                  value={webinarForm.topic}
+                                  onChange={(e) => handleWebinarFormChange('topic', e.target.value)}
+                                  placeholder="e.g., JavaScript, Design, Marketing"
+                                />
+                              </div>
+                            </div>
+                            <div className="mb-3">
+                              <label className="form-label">Description *</label>
+                              <textarea 
+                                className="form-control"
+                                rows="3"
+                                value={webinarForm.description}
+                                onChange={(e) => handleWebinarFormChange('description', e.target.value)}
+                                placeholder="Describe what participants will learn..."
+                              />
+                            </div>
+                            <div className="row">
+                              <div className="col-md-6 mb-3">
+                                <label className="form-label">Scheduled Date & Time *</label>
+                                <input 
+                                  type="datetime-local" 
+                                  className="form-control"
+                                  value={webinarForm.scheduledDate}
+                                  onChange={(e) => handleWebinarFormChange('scheduledDate', e.target.value)}
+                                />
+                              </div>
+                              <div className="col-md-6 mb-3">
+                                <label className="form-label">Duration (minutes) *</label>
+                                <input 
+                                  type="number" 
+                                  className="form-control"
+                                  value={webinarForm.duration}
+                                  onChange={(e) => handleWebinarFormChange('duration', parseInt(e.target.value))}
+                                  min="15"
+                                  max="480"
+                                />
+                              </div>
+                            </div>
+                            <div className="row">
+                              <div className="col-md-6 mb-3">
+                                <label className="form-label">Max Participants</label>
+                                <input 
+                                  type="number" 
+                                  className="form-control"
+                                  value={webinarForm.maxParticipants}
+                                  onChange={(e) => handleWebinarFormChange('maxParticipants', parseInt(e.target.value))}
+                                  min="1"
+                                  max="1000"
+                                />
+                              </div>
+                              <div className="col-md-6 mb-3">
+                                <label className="form-label">Price (0 = Free)</label>
+                                <input 
+                                  type="number" 
+                                  className="form-control"
+                                  value={webinarForm.price}
+                                  onChange={(e) => handleWebinarFormChange('price', parseFloat(e.target.value))}
+                                  min="0"
+                                  step="0.01"
+                                />
+                              </div>
+                            </div>
+                            <div className="mb-3">
+                              <div className="form-check">
+                                <input 
+                                  className="form-check-input"
+                                  type="checkbox"
+                                  checked={webinarForm.isPublic}
+                                  onChange={(e) => handleWebinarFormChange('isPublic', e.target.checked)}
+                                />
+                                <label className="form-check-label">
+                                  Make this webinar public
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="modal-footer">
+                            <button 
+                              type="button" 
+                              className="btn btn-secondary" 
+                              onClick={() => setShowCreateWebinar(false)}
+                            >
+                              Cancel
+                            </button>
+                            <button 
+                              type="button" 
+                              className="btn btn-primary"
+                              onClick={handleCreateWebinar}
+                              disabled={saving || !webinarForm.title || !webinarForm.description || !webinarForm.topic || !webinarForm.scheduledDate}
+                            >
+                              {saving ? (editingWebinarId ? 'Updating...' : 'Creating...') : (editingWebinarId ? 'Update Webinar' : 'Create Webinar')}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* My Webinars */}
+                  <div className="mb-4">
+                    <h6 className="mb-3">My Webinars</h6>
+                    {webinarsLoading ? (
+                      <div className="text-center py-4">
+                        <div className="spinner-border text-primary" role="status">
+                          <span className="visually-hidden">Loading...</span>
+                        </div>
+                      </div>
+                    ) : myWebinars.length === 0 ? (
+                      <div className="text-center text-secondary py-4">
+                        <FaCamera size={48} className="mb-3" />
+                        <p>You haven't hosted any webinars yet.</p>
+                        <button 
+                          className="btn btn-primary"
+                          onClick={() => setShowCreateWebinar(true)}
+                        >
+                          Host Your First Webinar
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="row g-3">
+                        {myWebinars.map(webinar => (
+                          <div key={webinar._id} className="col-md-6 col-lg-4">
+                            <div className="card border-0 shadow-sm h-100">
+                              <div className="card-body">
+                                <div className="d-flex justify-content-between align-items-start mb-2">
+                                  <span className={`badge ${webinar.status === 'upcoming' ? 'bg-primary' : webinar.status === 'live' ? 'bg-success' : webinar.status === 'completed' ? 'bg-secondary' : 'bg-danger'}`}>
+                                    {webinar.status}
+                                  </span>
+                                  <small className="text-muted">
+                                    {new Date(webinar.scheduledDate).toLocaleDateString()}
+                                  </small>
+                                </div>
+                                <h6 className="card-title">{webinar.title}</h6>
+                                <p className="card-text text-secondary small">{webinar.description.substring(0, 100)}...</p>
+                                <div className="d-flex justify-content-between align-items-center">
+                                  <small className="text-muted">
+                                    {webinar.currentParticipants}/{webinar.maxParticipants} participants
+                                  </small>
+                                  <small className="text-muted">
+                                    {webinar.duration} min
+                                  </small>
+                                </div>
+                              </div>
+                              <div className="card-footer bg-transparent">
+                                <div className="d-flex gap-2 mb-2">
+                                  <button 
+                                    className="btn btn-sm btn-outline-primary flex-fill"
+                                    onClick={() => handleEditWebinar(webinar._id)}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button 
+                                    className="btn btn-sm btn-outline-danger"
+                                    onClick={() => handleDeleteWebinar(webinar._id)}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                                {webinar.meetingLink && (
+                                  <div className="d-flex gap-2">
+                                    <button 
+                                      className="btn btn-sm btn-success flex-fill"
+                                      onClick={() => {
+                                        const meetCode = webinar.meetingLink.split('/').pop();
+                                        const instructions = `To start your webinar meeting:
+
+1. Click "OK" to open Google Meet
+2. When Google Meet opens, click "Create meeting"
+3. Copy this meeting code: ${meetCode}
+4. Share this code with participants: ${webinar.meetingLink}
+
+Participants can join using the same link.`;
+                                        
+                                        if (confirm(instructions)) {
+                                          window.open('https://meet.google.com', '_blank');
+                                        }
+                                      }}
+                                    >
+                                      Start Meeting
+                                    </button>
+                                    <button 
+                                      className="btn btn-sm btn-outline-secondary"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(webinar.meetingLink);
+                                        setSuccess('Google Meet link copied to clipboard!');
+                                      }}
+                                    >
+                                      Copy Link
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+
+                </div>
+              )}
+
+              {activeTab==='reputation' && (
+                <div className="text-center">
+                  <h5 className="mb-3">Your Reputation</h5>
+                  <div className="display-5 fw-bold mb-2" style={{color:'#185a9d'}}>
+                    <FaStar className="text-warning mb-1" /> 
+                    {user.reputation > 0 ? user.reputation.toFixed(1) : '0.0'}
+                  </div>
+                  <div className="text-secondary mb-3">
+                    Based on {user.reviews} {user.reviews === 1 ? 'review' : 'reviews'} from other users.
+                  </div>
+                  
+                  {/* Rating breakdown */}
+                  {user.reviews > 0 && (
+                    <div className="row justify-content-center mb-4">
+                      <div className="col-md-6">
+                        <div className="card border-0 shadow-sm">
+                          <div className="card-body">
+                            <h6 className="card-title">Rating Breakdown</h6>
+                            <div className="d-flex justify-content-between align-items-center mb-2">
+                              <span>5 stars</span>
+                              <div className="progress flex-grow-1 mx-2" style={{height: '8px'}}>
+                                <div className="progress-bar bg-warning" style={{width: '75%'}}></div>
+                              </div>
+                              <span>75%</span>
+                            </div>
+                            <div className="d-flex justify-content-between align-items-center mb-2">
+                              <span>4 stars</span>
+                              <div className="progress flex-grow-1 mx-2" style={{height: '8px'}}>
+                                <div className="progress-bar bg-warning" style={{width: '20%'}}></div>
+                              </div>
+                              <span>20%</span>
+                            </div>
+                            <div className="d-flex justify-content-between align-items-center mb-2">
+                              <span>3 stars</span>
+                              <div className="progress flex-grow-1 mx-2" style={{height: '8px'}}>
+                                <div className="progress-bar bg-warning" style={{width: '5%'}}></div>
+                              </div>
+                              <span>5%</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="mt-4">
+                    <p className="text-muted">Start swapping skills to build your reputation!</p>
+                    <button 
+                      className="btn btn-outline-primary"
+                      onClick={checkNewAchievements}
+                    >
+                      Check for New Achievements
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeTab==='badges' && (
+                <div className="text-center">
+                  <h5 className="mb-3">Your Achievements</h5>
+                  
+                  {/* Level and Experience */}
+                  <div className="row justify-content-center mb-4">
+                    <div className="col-md-6">
+                      <div className="card border-0 shadow-sm">
+                        <div className="card-body">
+                          <h6 className="card-title">Level {user.achievements.level}</h6>
+                          <div className="progress mb-2" style={{height: '10px'}}>
+                            <div 
+                              className="progress-bar bg-primary" 
+                              style={{
+                                width: `${Math.min(100, (user.achievements.experience % 100))}%`
+                              }}
+                            ></div>
+                          </div>
+                          <small className="text-muted">
+                            {user.achievements.experience} XP • {user.achievements.totalBadges} badges earned
+                          </small>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {user.achievements.badges.length === 0 ? (
+                    <div className="text-secondary py-4">
+                      <FaMedal size={48} className="mb-3" />
+                      <p>No badges yet. Complete swaps and activities to earn badges!</p>
+                      <button 
+                        className="btn btn-outline-primary"
+                        onClick={checkNewAchievements}
+                      >
+                        Check for New Achievements
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="d-flex flex-wrap justify-content-center gap-3 mb-4">
+                        {user.achievements.badges.map((badge, idx) => (
+                          <div key={idx} className="card border-0 shadow-sm" style={{minWidth: '200px'}}>
+                            <div className="card-body text-center">
+                              <div className="fs-1 mb-2">{badge.icon}</div>
+                              <h6 className="card-title">{badge.name}</h6>
+                              <p className="card-text text-muted small">{badge.description}</p>
+                              <small className="text-secondary">
+                                Earned {new Date(badge.earnedAt).toLocaleDateString()}
+                              </small>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button 
+                        className="btn btn-outline-primary"
+                        onClick={checkNewAchievements}
+                      >
+                        Check for New Achievements
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {activeTab==='referral' && (
+                <div className="text-center">
+                  <h5 className="mb-3">Invite Friends & Earn Credits</h5>
+                  
+                  {referralLoading ? (
+                    <div className="text-center py-4">
+                      <div className="spinner-border text-primary" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Referral Link */}
+                      <div className="mb-4">
+                        <h6 className="mb-2">Your Referral Link</h6>
+                        <div className="input-group mb-2" style={{maxWidth:'400px',margin:'0 auto'}}>
+                          <input 
+                            className="form-control" 
+                            value={`${window.location.origin}/register?ref=${referralStats.referralCode}`} 
+                            readOnly 
+                          />
+                          <button 
+                            className="btn btn-outline-primary" 
+                            onClick={() => {
+                              navigator.clipboard.writeText(`${window.location.origin}/register?ref=${referralStats.referralCode}`);
+                              setSuccess('Referral link copied!');
+                              setTimeout(() => setSuccess(''), 3000);
+                            }}
+                          >
+                            <FaCopy />
+                          </button>
+                        </div>
+                        <small className="text-muted">Share this link with friends to earn 10 credits when they join!</small>
+                      </div>
+
+                      {/* Referral Statistics */}
+                      <div className="row justify-content-center mb-4">
+                        <div className="col-md-8">
+                          <div className="card border-0 shadow-sm">
+                            <div className="card-body">
+                              <h6 className="card-title mb-3">Your Referral Stats</h6>
+                              <div className="row text-center">
+                                <div className="col-4">
+                                  <div className="h4 text-primary mb-1">{referralStats.referralStats.totalReferrals}</div>
+                                  <small className="text-muted">Total Referrals</small>
+                                </div>
+                                <div className="col-4">
+                                  <div className="h4 text-success mb-1">{referralStats.referralStats.successfulReferrals}</div>
+                                  <small className="text-muted">Successful</small>
+                                </div>
+                                <div className="col-4">
+                                  <div className="h4 text-warning mb-1">{referralStats.referralStats.creditsEarned}</div>
+                                  <small className="text-muted">Credits Earned</small>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* How it works */}
+                      <div className="text-start" style={{maxWidth:'500px',margin:'0 auto'}}>
+                        <h6 className="mb-3">How it works:</h6>
+                        <ul className="list-unstyled">
+                          <li className="mb-2">✅ Share your referral link with friends</li>
+                          <li className="mb-2">✅ When they sign up using your link, you get 10 credits</li>
+                          <li className="mb-2">✅ Credits are automatically added to your wallet</li>
+                          <li className="mb-2">✅ Use credits to schedule skill swap sessions</li>
+                        </ul>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {activeTab==='calendar' && (
+                <div>
+                  <h5 className="mb-3">Swap Calendar</h5>
+                  {calendarLoading ? (
+                    <div className="text-center py-4">
+                      <div className="spinner-border text-primary" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <Calendar 
+                      swaps={calendarSwaps}
+                      onAddEvent={handleAddCalendarEvent}
+                      onEditEvent={(eventId) => console.log('Edit event:', eventId)}
+                      onDeleteEvent={(eventId) => console.log('Delete event:', eventId)}
+                    />
+                  )}
+                </div>
+              )}
+
+              {activeTab==='settings' && (
+                <div style={{maxWidth:'400px',margin:'0 auto'}}>
+                  <h5 className="mb-3">Settings</h5>
+                  <div className="mb-3">
+                    <label className="form-label">Change Password</label>
+                    <input type="password" className="form-control" placeholder="New password" />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Preferred Language</label>
+                    <input type="text" className="form-control" placeholder="Language" />
+                  </div>
+                  <div className="form-check mb-3">
+                    <input className="form-check-input" type="checkbox" id="notifCheck" />
+                    <label className="form-check-label" htmlFor="notifCheck">Enable Notifications</label>
+                  </div>
+                  <button className="btn btn-primary w-100">Save Settings</button>
+                </div>
+              )}
+
+              {activeTab==='notifications' && (
+                <div>
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <h5>Notifications</h5>
+                    {Array.isArray(notifications) && notifications.length > 0 && (
+                      <button 
+                        className="btn btn-sm btn-outline-primary"
+                        onClick={async () => {
+                          if (token) {
+                            try {
+                              await NotificationService.markAllAsRead(token);
+                              setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+                              fetchUnreadCount();
+                            } catch (error) {
+                              console.error('Failed to mark all as read:', error);
+                            }
+                          }
+                        }}
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+                  
+                  {notificationsLoading ? (
+                    <div className="text-center py-4">
+                      <div className="spinner-border text-primary" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                      </div>
+                    </div>
+                  ) : (!Array.isArray(notifications) || notifications.length === 0) ? (
+                    <div className="text-center text-secondary py-4">
+                      <FaBell size={48} className="mb-3" />
+                      <p>No notifications yet. Start using the platform to receive notifications!</p>
+                    </div>
+                  ) : (
+                    <div className="list-group">
+                      {(Array.isArray(notifications) ? notifications : []).map(notification => (
+                        <div 
+                          key={notification._id} 
+                          className={`list-group-item ${!notification.isRead ? 'bg-light' : ''}`}
+                          style={{border: 'none', borderBottom: '1px solid #dee2e6'}}
+                        >
+                          <div className="d-flex align-items-start">
+                                                         <div className="me-3 mt-1">
+                               {notification.type === 'swap_request' && <FaExchangeAlt className="text-info" />}
+                               {notification.type === 'swap_accepted' && <FaCheckCircle className="text-success" />}
+                               {notification.type === 'swap_rejected' && <FaTimes className="text-danger" />}
+                               {notification.type === 'swap_completed' && <FaCheckCircle className="text-success" />}
+                               {notification.type === 'swap_cancelled' && <FaTimes className="text-warning" />}
+                               {notification.type === 'swap_rated' && <FaStar className="text-warning" />}
+                               {notification.type === 'swap_scheduled' && <FaClock className="text-primary" />}
+                               {notification.type === 'message' && <FaComments className="text-primary" />}
+                             </div>
+                            <div className="flex-grow-1">
+                              <div className="fw-bold">{notification.title}</div>
+                              <div className="text-muted">{notification.message}</div>
+                              <small className="text-secondary">
+                                {new Date(notification.createdAt).toLocaleString()}
+                              </small>
+                            </div>
+                            <div className="ms-2">
+                              {!notification.isRead && (
+                                <button 
+                                  className="btn btn-sm btn-outline-primary me-1"
+                                  onClick={() => handleMarkAsRead(notification._id)}
+                                >
+                                  Mark read
+                                </button>
+                              )}
+                              <button 
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() => handleDeleteNotification(notification._id)}
+                              >
+                                <FaTrash />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard; 
