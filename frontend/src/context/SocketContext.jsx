@@ -1,16 +1,8 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 
-const SocketContext = createContext();
-
-export const useSocket = () => {
-  const context = useContext(SocketContext);
-  if (!context) {
-    throw new Error('useSocket must be used within a SocketProvider');
-  }
-  return context;
-};
+export const SocketContext = createContext();
 
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
@@ -97,14 +89,65 @@ export const SocketProvider = ({ children }) => {
       // Handle typing indicator stop
     });
 
+    // Listen for profile updates
+    socket.on('user_profile_updated', (data) => {
+      console.log('User profile updated:', data);
+      // Update user profile in context if it's the current user
+      if (data.userId === user?._id) {
+        // Update user context with new profile data
+        // This will be handled by the AuthContext
+      }
+    });
+
+    // Listen for wallet updates
+    socket.on('wallet_balance_updated', (data) => {
+      console.log('Wallet balance updated:', data);
+      // Update wallet balance in context
+      // This will be handled by the Wallet component
+    });
+
+    // Listen for user status changes
+    socket.on('user_status_changed', (data) => {
+      console.log('User status changed:', data);
+      // Update user online/offline status
+      // This will be handled by the UserDiscovery component
+    });
+
+    // Listen for calendar updates
+    socket.on('calendar_data_updated', (data) => {
+      console.log('Calendar data updated:', data);
+      // Update calendar data
+      // This will be handled by the Calendar component
+    });
+
+    // Listen for new achievements
+    socket.on('new_achievement', (data) => {
+      console.log('New achievement earned:', data);
+      // Show achievement notification
+      // This will be handled by the Dashboard component
+    });
+
+    // Listen for webinar status updates
+    socket.on('webinar_status_updated', (data) => {
+      console.log('Webinar status updated:', data);
+      // Update webinar status
+      // This will be handled by the Webinars component
+    });
+
     return () => {
       socket.off('new_swap_request');
       socket.off('swap_response_received');
       socket.off('message_received');
       socket.off('user_typing');
       socket.off('user_stopped_typing');
+      socket.off('user_profile_updated');
+      socket.off('wallet_balance_updated');
+      socket.off('user_status_changed');
+      socket.off('calendar_data_updated');
+      socket.off('new_achievement');
+      socket.off('webinar_status_updated');
     };
-  }, [socket]);
+  }, [socket, user]);
 
   const value = {
     socket,
@@ -133,6 +176,36 @@ export const SocketProvider = ({ children }) => {
     emitTypingStop: (data) => {
       if (socket && isConnected) {
         socket.emit('typing_stop', data);
+      }
+    },
+    emitProfileUpdate: (data) => {
+      if (socket && isConnected) {
+        socket.emit('profile_updated', data);
+      }
+    },
+    emitWalletUpdate: (data) => {
+      if (socket && isConnected) {
+        socket.emit('wallet_updated', data);
+      }
+    },
+    emitUserOnline: (data) => {
+      if (socket && isConnected) {
+        socket.emit('user_online', data);
+      }
+    },
+    emitCalendarUpdate: (data) => {
+      if (socket && isConnected) {
+        socket.emit('calendar_updated', data);
+      }
+    },
+    emitAchievementEarned: (data) => {
+      if (socket && isConnected) {
+        socket.emit('achievement_earned', data);
+      }
+    },
+    emitWebinarStatusChange: (data) => {
+      if (socket && isConnected) {
+        socket.emit('webinar_status_changed', data);
       }
     }
   };

@@ -24,6 +24,7 @@ import WebinarSessionManager from './components/WebinarSessionManager';
 import Webinars from './pages/Webinars';
 import WebinarManager from './pages/WebinarManager';
 
+
 import { Container, Nav, Navbar as RBNavbar, Button } from 'react-bootstrap';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
@@ -49,6 +50,7 @@ function Navbar() {
               <Nav.Link as={Link} to="/swaps">My Swaps</Nav.Link>
               <Nav.Link as={Link} to="/webinars">Webinars</Nav.Link>
               <Nav.Link as={Link} to="/wallet">Wallet</Nav.Link>
+
               <Nav.Item className="position-relative ms-2">
                 <Button variant="link" className="nav-link p-0 bg-transparent border-0" style={{outline:'none',boxShadow:'none'}} title="Notifications" onClick={()=>navigate('/dashboard', { state: { openTab: 'notifications' } })}>
                   <FaBell size={22} />
@@ -143,6 +145,7 @@ function App() {
             } />
             <Route path="/webinars" element={<Webinars />} />
             <Route path="/webinar-manager" element={<WebinarManager />} />
+
             
             {/* Future routes for Privacy, Terms, etc. */}
           </Routes>

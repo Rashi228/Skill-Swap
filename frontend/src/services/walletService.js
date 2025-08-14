@@ -45,7 +45,8 @@ class WalletService {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch transactions');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to fetch transactions`);
       }
       
       const data = await response.json();

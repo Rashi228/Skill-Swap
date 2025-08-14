@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { FaSearch, FaFilter, FaStar, FaTools, FaLightbulb, FaMapMarkerAlt, FaUserCircle, FaEye, FaExchangeAlt } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useSocket } from '../context/SocketContext';
+import { useSocket } from '../hooks/useSocket';
 import userService from '../services/userService';
 
 const UserDiscovery = () => {
   const navigate = useNavigate();
   const { token, user } = useAuth();
-  const { emitSwapRequest } = useSocket();
+  const { emitSwapRequest, socket } = useSocket();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -28,6 +28,41 @@ const UserDiscovery = () => {
   useEffect(() => {
     loadUsers();
   }, [token, currentPage, search, skillFilter, locationFilter]);
+
+  // Listen for real-time user status updates
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleUserStatusChange = (data) => {
+      console.log('User status changed:', data);
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user._id === data.userId 
+            ? { ...user, isOnline: data.status === 'online' }
+            : user
+        )
+      );
+    };
+
+    const handleUserProfileUpdate = (data) => {
+      console.log('User profile updated:', data);
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user._id === data.userId 
+            ? { ...user, ...data.profile }
+            : user
+        )
+      );
+    };
+
+    socket.on('user_status_changed', handleUserStatusChange);
+    socket.on('user_profile_updated', handleUserProfileUpdate);
+
+    return () => {
+      socket.off('user_status_changed', handleUserStatusChange);
+      socket.off('user_profile_updated', handleUserProfileUpdate);
+    };
+  }, [socket]);
 
   const loadUsers = async () => {
     if (!token) return;

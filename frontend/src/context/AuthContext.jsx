@@ -65,6 +65,26 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
   };
 
+  // Refresh user data from server
+  const refreshUser = async () => {
+    if (token) {
+      try {
+        const response = await fetch('http://localhost:5000/api/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setUser(data.user);
+        }
+      } catch (error) {
+        console.error('Failed to refresh user data:', error);
+      }
+    }
+  };
+
   // Fetch unread notification count
   const fetchUnreadCount = async () => {
     if (token) {
@@ -95,6 +115,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     login,
     logout,
+    refreshUser,
     isAuthenticated: !!user && !!token,
     unreadNotifications,
     fetchUnreadCount,

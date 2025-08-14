@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { FaExchangeAlt, FaCheckCircle, FaTimes, FaClock, FaStar, FaUserCircle, FaComments } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
-import { useSocket } from '../context/SocketContext';
+import { useSocket } from '../hooks/useSocket';
 import userService from '../services/userService';
 import Chat from '../components/Chat';
+import ReviewService from '../services/reviewService';
+import ReviewForm from '../components/ReviewForm';
 
 const SwapManagement = () => {
   const { token, user } = useAuth();
@@ -16,6 +18,9 @@ const SwapManagement = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [showChat, setShowChat] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [selectedUserForReview, setSelectedUserForReview] = useState(null);
+  const [selectedSwap, setSelectedSwap] = useState(null);
 
   // Define before any effects that reference it to avoid TDZ errors
   const loadSwaps = async () => {
@@ -198,6 +203,15 @@ const SwapManagement = () => {
       setError('Error opening chat');
       console.error('Error opening chat:', error);
     }
+  };
+
+  const handleGiveReview = (swap) => {
+    // Determine which user to review (the other person in the swap)
+    const otherUser = swap.requester._id === user._id ? swap.recipient : swap.requester;
+    setSelectedUserForReview(otherUser);
+    setShowReviewForm(true);
+    // Store the swap for reference
+    setSelectedSwap(swap);
   };
 
   const getStatusBadge = (status) => {
@@ -415,6 +429,16 @@ const SwapManagement = () => {
                               <FaComments />
                             </button>
                           )}
+                          
+                          {swap.status === 'completed' && (
+                            <button
+                              className="btn btn-outline-warning btn-sm"
+                              onClick={() => handleGiveReview(swap)}
+                              title="Give Review"
+                            >
+                              <FaStar />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -483,6 +507,29 @@ const SwapManagement = () => {
                 setShowChat(false);
                 setSelectedConversationId(null);
               }}
+            />
+          </div>
+        )}
+
+        {/* Review Modal */}
+        {showReviewForm && selectedUserForReview && selectedSwap && (
+          <div className="position-fixed top-50 start-50 translate-middle" style={{ zIndex: 1060 }}>
+            <ReviewForm
+              reviewedUser={selectedUserForReview}
+              swapId={selectedSwap._id}
+              onReviewSubmitted={() => {
+                setShowReviewForm(false);
+                setSelectedUserForReview(null);
+                setSelectedSwap(null);
+                // Reload swaps to refresh the UI
+                loadSwaps();
+              }}
+              onCancel={() => {
+                setShowReviewForm(false);
+                setSelectedUserForReview(null);
+                setSelectedSwap(null);
+              }}
+              context="swap"
             />
           </div>
         )}

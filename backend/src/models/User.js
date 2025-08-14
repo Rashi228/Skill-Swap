@@ -104,6 +104,23 @@ const userSchema = new mongoose.Schema({
     count: {
       type: Number,
       default: 0
+    },
+    totalReviews: {
+      type: Number,
+      default: 0
+    },
+    helpfulReviews: {
+      type: Number,
+      default: 0
+    },
+    reviewBreakdown: {
+      teaching: { average: { type: Number, default: 0 }, count: { type: Number, default: 0 } },
+      learning: { average: { type: Number, default: 0 }, count: { type: Number, default: 0 } },
+      communication: { average: { type: Number, default: 0 }, count: { type: Number, default: 0 } },
+      knowledge: { average: { type: Number, default: 0 }, count: { type: Number, default: 0 } },
+      helpfulness: { average: { type: Number, default: 0 }, count: { type: Number, default: 0 } },
+      professionalism: { average: { type: Number, default: 0 }, count: { type: Number, default: 0 } },
+      overall: { average: { type: Number, default: 0 }, count: { type: Number, default: 0 } }
     }
   },
   wallet: {
@@ -118,7 +135,26 @@ const userSchema = new mongoose.Schema({
     spent: {
       type: Number,
       default: 0
-    }
+    },
+    transactions: [{
+      type: {
+        type: String,
+        enum: ['credit', 'debit'],
+        required: true
+      },
+      amount: {
+        type: Number,
+        required: true
+      },
+      reason: {
+        type: String,
+        required: true
+      },
+      timestamp: {
+        type: Date,
+        default: Date.now
+      }
+    }]
   },
   achievements: {
     badges: [{
@@ -166,6 +202,10 @@ const userSchema = new mongoose.Schema({
   lastActive: {
     type: Date,
     default: Date.now
+  },
+  lastLoginDate: {
+    type: Date,
+    default: null
   },
   preferences: {
     notifications: {

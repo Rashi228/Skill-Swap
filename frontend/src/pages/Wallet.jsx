@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { FaWallet, FaArrowDown, FaArrowUp, FaPlus, FaMinus } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../hooks/useSocket';
 import walletService from '../services/walletService';
 
 const Wallet = () => {
   const { token } = useAuth();
+  const { socket } = useSocket();
   const [wallet, setWallet] = useState({
     balance: 0,
     earned: 0,
@@ -35,6 +37,29 @@ const Wallet = () => {
     }
   }, [token, currentPage, typeFilter, search]);
 
+  // Listen for real-time wallet updates
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleWalletUpdate = (data) => {
+      console.log('Real-time wallet update received:', data);
+      setWallet({
+        balance: data.balance,
+        earned: data.earned,
+        spent: data.spent
+      });
+      setTransactions(data.transactions || transactions);
+      setSuccess('Wallet updated in real-time!');
+      setTimeout(() => setSuccess(''), 3000);
+    };
+
+    socket.on('wallet_balance_updated', handleWalletUpdate);
+
+    return () => {
+      socket.off('wallet_balance_updated', handleWalletUpdate);
+    };
+  }, [socket, transactions]);
+
   const loadWalletData = async () => {
     if (!token) return;
     
@@ -62,22 +87,22 @@ const Wallet = () => {
     if (!token) return;
     
     try {
-      const options = {
-        page: currentPage,
-        limit: 10,
-        search: search || undefined,
-        type: typeFilter !== 'All' ? typeFilter.toLowerCase() : undefined
-      };
+             const options = {
+         page: currentPage,
+         limit: 10,
+         search: search || undefined,
+         type: typeFilter === 'Earned' ? 'credit' : typeFilter === 'Spent' ? 'debit' : undefined
+       };
       
-      const result = await walletService.getTransactions(token, options);
-      if (result.success) {
-        setTransactions(result.transactions);
-        setTotalPages(result.pagination.pages);
-      } else {
-        setError('Failed to load transactions');
-      }
+             const result = await walletService.getTransactions(token, options);
+       if (result.success) {
+         setTransactions(result.transactions);
+         setTotalPages(result.pagination.pages);
+       } else {
+         setError(result.error || 'Failed to load transactions');
+       }
     } catch (error) {
-      setError('Error loading transactions');
+      setError(error.message || 'Error loading transactions');
       console.error('Error loading transactions:', error);
     }
   };
@@ -125,8 +150,10 @@ const Wallet = () => {
           </div>
         )}
 
-        {/* Wallet Summary Cards */}
-        <div className="row g-4 mb-4">
+        
+
+         {/* Wallet Summary Cards */}
+         <div className="row g-4 mb-4">
           <div className="col-md-4">
             <div className="card text-center p-4 shadow-sm border-0">
               <div className="fs-2 text-primary"><FaWallet /></div>
@@ -199,21 +226,21 @@ const Wallet = () => {
                     </td>
                   </tr>
                 ) : (
-                  transactions.map(tx => (
-                    <tr key={tx.id}>
-                      <td>{formatDate(tx.date)}</td>
-                      <td>
-                        {tx.type === 'Earned' ? 
-                          <span className="badge bg-success">Earned</span> : 
-                          <span className="badge bg-danger">Spent</span>
-                        }
-                      </td>
-                      <td className={tx.amount > 0 ? 'text-success' : 'text-danger'}>
-                        {tx.amount > 0 ? '+' : ''}{tx.amount.toFixed(1)}
-                      </td>
-                      <td>{tx.desc}</td>
-                    </tr>
-                  ))
+                                     transactions.map((tx, index) => (
+                     <tr key={tx._id || index}>
+                       <td>{formatDate(tx.timestamp)}</td>
+                       <td>
+                         {tx.type === 'credit' ? 
+                           <span className="badge bg-success">Earned</span> : 
+                           <span className="badge bg-danger">Spent</span>
+                         }
+                       </td>
+                       <td className={tx.type === 'credit' ? 'text-success' : 'text-danger'}>
+                         {tx.type === 'credit' ? '+' : '-'}{tx.amount.toFixed(1)}
+                       </td>
+                       <td>{tx.reason}</td>
+                     </tr>
+                   ))
                 )}
               </tbody>
             </table>

@@ -36,6 +36,12 @@ io.on('connection', (socket) => {
     socket.userId = userId;
     socket.join(`user_${userId}`);
     console.log(`User ${userId} authenticated and joined room`);
+    
+    // Emit user online status to all other users
+    socket.broadcast.emit('user_status_changed', {
+      userId: userId,
+      status: 'online'
+    });
   });
 
   // Handle swap request
@@ -108,9 +114,77 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Handle profile updates
+  socket.on('profile_updated', (data) => {
+    const { userId, profile } = data;
+    // Broadcast to all connected users that this user's profile has changed
+    io.emit('user_profile_updated', {
+      userId,
+      profile
+    });
+  });
+
+  // Handle wallet updates
+  socket.on('wallet_updated', (data) => {
+    const { userId, wallet } = data;
+    // Only emit to the specific user
+    io.to(`user_${userId}`).emit('wallet_balance_updated', {
+      balance: wallet.balance,
+      transactions: wallet.transactions
+    });
+  });
+
+  // Handle user online status
+  socket.on('user_online', (data) => {
+    const { userId } = data;
+    // Broadcast to all users that this user is online
+    socket.broadcast.emit('user_status_changed', {
+      userId,
+      status: 'online'
+    });
+  });
+
+  // Handle calendar updates
+  socket.on('calendar_updated', (data) => {
+    const { userId, swaps } = data;
+    // Emit to the specific user
+    io.to(`user_${userId}`).emit('calendar_data_updated', {
+      swaps
+    });
+  });
+
+  // Handle achievement updates
+  socket.on('achievement_earned', (data) => {
+    const { userId, achievement } = data;
+    // Emit to the specific user
+    io.to(`user_${userId}`).emit('new_achievement', {
+      achievement
+    });
+  });
+
+  // Handle webinar status updates
+  socket.on('webinar_status_changed', (data) => {
+    const { webinarId, status, participants } = data;
+    // Emit to all participants
+    participants.forEach(participantId => {
+      const participantSocketId = connectedUsers.get(participantId);
+      if (participantSocketId) {
+        io.to(participantSocketId).emit('webinar_status_updated', {
+          webinarId,
+          status
+        });
+      }
+    });
+  });
+
   // Handle disconnect
   socket.on('disconnect', () => {
     if (socket.userId) {
+      // Emit user offline status before removing
+      socket.broadcast.emit('user_status_changed', {
+        userId: socket.userId,
+        status: 'offline'
+      });
       connectedUsers.delete(socket.userId);
       console.log(`User ${socket.userId} disconnected`);
     }
@@ -156,7 +230,12 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/users', require('./routes/users'));
+
+// Initialize user routes with socket.io
+const userRoutes = require('./routes/users');
+userRoutes.setIO(io);
+app.use('/api/users', userRoutes.router);
+
 app.use('/api/skills', require('./routes/skills'));
 
 // Initialize swap routes with socket.io
@@ -171,9 +250,21 @@ app.use('/api/chat', chatRoutes.router);
 
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/admin', require('./routes/admin'));
-app.use('/api/wallet', require('./routes/wallet'));
+
+// Initialize wallet routes with socket.io
+const walletRoutes = require('./routes/wallet');
+walletRoutes.setIO(io);
+app.use('/api/wallet', walletRoutes.router);
+
 app.use('/api/referrals', require('./routes/referrals'));
 app.use('/api/webinars', require('./routes/webinars'));
+app.use('/api/credits', require('./routes/credits'));
+app.use('/api/reviews', require('./routes/reviews'));
+
+// Initialize achievements routes with socket.io
+const achievementsRoutes = require('./routes/achievements');
+achievementsRoutes.setIO(io);
+app.use('/api/achievements', achievementsRoutes.router);
 
 // Health check route
 app.get('/api/health', (req, res) => {

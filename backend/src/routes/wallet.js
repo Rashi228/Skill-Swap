@@ -1,25 +1,30 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
-const { auth } = require('../middleware/auth');
 const User = require('../models/User');
-const Transaction = require('../models/Transaction');
+const { auth } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Socket.io instance (will be set by server.js)
+let io = null;
+const setIO = (socketIO) => {
+  io = socketIO;
+};
+
 // @route   GET /api/wallet/balance
-// @desc    Get wallet balance and summary
+// @desc    Get user's wallet balance
 // @access  Private
 router.get('/balance', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select('wallet');
+    
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     res.json({
-      balance: user.wallet.balance,
-      earned: user.wallet.earned,
-      spent: user.wallet.spent
+      balance: user.wallet.balance || 0,
+      earned: user.wallet.earned || 0,
+      spent: user.wallet.spent || 0
     });
   } catch (error) {
     console.error('Get wallet balance error:', error);
@@ -28,42 +33,52 @@ router.get('/balance', auth, async (req, res) => {
 });
 
 // @route   GET /api/wallet/transactions
-// @desc    Get user's transaction history
+// @desc    Get user's wallet transactions with pagination and filtering
 // @access  Private
 router.get('/transactions', auth, async (req, res) => {
   try {
+    const user = await User.findById(req.user._id).select('wallet');
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const type = req.query.type; // 'earned' or 'spent'
-    const search = req.query.search;
+    const search = req.query.search || '';
+    const type = req.query.type || '';
 
-    const query = { userId: req.user._id };
+    // Ensure wallet.transactions exists
+    if (!user.wallet.transactions) {
+      user.wallet.transactions = [];
+      await user.save();
+    }
     
+    let transactions = user.wallet.transactions;
+
+    // Filter by type if specified
     if (type) {
-      query.type = type;
+      transactions = transactions.filter(t => t.type === type);
     }
-    
+
+    // Filter by search term if specified
     if (search) {
-      query.description = { $regex: search, $options: 'i' };
+      transactions = transactions.filter(t => 
+        t.reason && t.reason.toLowerCase().includes(search.toLowerCase())
+      );
     }
 
-    const transactions = await Transaction.find(query)
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .populate('relatedUserId', 'firstName lastName username');
+    // Sort by timestamp (newest first)
+    transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-    const total = await Transaction.countDocuments(query);
+    // Calculate pagination
+    const total = transactions.length;
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedTransactions = transactions.slice(startIndex, endIndex);
 
     res.json({
-      transactions: transactions.map(tx => ({
-        id: tx._id,
-        date: tx.createdAt,
-        type: tx.type === 'earned' ? 'Earned' : 'Spent',
-        amount: tx.type === 'earned' ? tx.amount : -tx.amount,
-        desc: tx.description,
-        relatedUser: tx.relatedUserId ? `${tx.relatedUserId.firstName} ${tx.relatedUserId.lastName}` : null
-      })),
+      transactions: paginatedTransactions,
       pagination: {
         page,
         limit,
@@ -72,60 +87,114 @@ router.get('/transactions', auth, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get transactions error:', error);
+    console.error('Get wallet transactions error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
+// @route   POST /api/wallet/add-credits
+// @desc    Add credits to user's wallet (for testing/achievements)
+// @access  Private
+router.post('/add-credits', auth, async (req, res) => {
+  try {
+    const { amount, reason } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
+    }
 
+    const user = await User.findById(req.user._id);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Add credits
+    user.wallet.balance += amount;
+    user.wallet.earned += amount;
+    
+    // Add transaction
+    const transaction = {
+      type: 'credit',
+      amount: amount,
+      reason: reason || 'Credit added',
+      timestamp: new Date()
+    };
+    
+    user.wallet.transactions.push(transaction);
+    await user.save();
+
+    // Emit socket event for wallet update
+    if (io) {
+      io.to(`user_${user._id}`).emit('wallet_balance_updated', {
+        balance: user.wallet.balance,
+        earned: user.wallet.earned,
+        spent: user.wallet.spent,
+        transactions: user.wallet.transactions
+      });
+    }
+
+    res.json({
+      message: 'Credits added successfully',
+      newBalance: user.wallet.balance,
+      transaction
+    });
+  } catch (error) {
+    console.error('Add credits error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // @route   POST /api/wallet/spend-credits
-// @desc    Spend credits from wallet
+// @desc    Spend credits from user's wallet
 // @access  Private
-router.post('/spend-credits', [
-  auth,
-  body('amount').isFloat({ min: 0.1 }).withMessage('Amount must be positive'),
-  body('description').notEmpty().withMessage('Description is required')
-], async (req, res) => {
+router.post('/spend-credits', auth, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+    const { amount, reason } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
     }
 
-    const { amount, description } = req.body;
-
-    // Check if user has enough balance
     const user = await User.findById(req.user._id);
-    if (user.wallet.balance < amount) {
-      return res.status(400).json({ error: 'Insufficient balance' });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    // Create transaction
-    const transaction = new Transaction({
-      userId: req.user._id,
-      type: 'spent',
-      amount: amount,
-      description: description
-    });
+    if (user.wallet.balance < amount) {
+      return res.status(400).json({ error: 'Insufficient credits' });
+    }
 
-    await transaction.save();
-
-    // Update user wallet
+    // Spend credits
     user.wallet.balance -= amount;
     user.wallet.spent += amount;
+    
+    // Add transaction
+    const transaction = {
+      type: 'debit',
+      amount: amount,
+      reason: reason || 'Credits spent',
+      timestamp: new Date()
+    };
+    
+    user.wallet.transactions.push(transaction);
     await user.save();
+
+    // Emit socket event for wallet update
+    if (io) {
+      io.to(`user_${user._id}`).emit('wallet_balance_updated', {
+        balance: user.wallet.balance,
+        earned: user.wallet.earned,
+        spent: user.wallet.spent,
+        transactions: user.wallet.transactions
+      });
+    }
 
     res.json({
       message: 'Credits spent successfully',
       newBalance: user.wallet.balance,
-      transaction: {
-        id: transaction._id,
-        date: transaction.createdAt,
-        type: 'Spent',
-        amount: -amount,
-        desc: description
-      }
+      transaction
     });
   } catch (error) {
     console.error('Spend credits error:', error);
@@ -133,108 +202,6 @@ router.post('/spend-credits', [
   }
 });
 
-// @route   POST /api/wallet/transfer
-// @desc    Transfer credits between users (for skill swaps)
-// @access  Private
-router.post('/transfer', [
-  auth,
-  body('toUserId').isMongoId().withMessage('Valid user ID required'),
-  body('amount').isFloat({ min: 0.1 }).withMessage('Amount must be positive'),
-  body('description').notEmpty().withMessage('Description is required')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
 
-    const { toUserId, amount, description } = req.body;
 
-    // Check if user has enough balance
-    const fromUser = await User.findById(req.user._id);
-    if (fromUser.wallet.balance < amount) {
-      return res.status(400).json({ error: 'Insufficient balance' });
-    }
-
-    // Check if recipient exists
-    const toUser = await User.findById(toUserId);
-    if (!toUser) {
-      return res.status(404).json({ error: 'Recipient not found' });
-    }
-
-    // Create transactions for both users
-    const fromTransaction = new Transaction({
-      userId: req.user._id,
-      type: 'spent',
-      amount: amount,
-      description: description,
-      relatedUserId: toUserId
-    });
-
-    const toTransaction = new Transaction({
-      userId: toUserId,
-      type: 'earned',
-      amount: amount,
-      description: `Received: ${description}`,
-      relatedUserId: req.user._id
-    });
-
-    await fromTransaction.save();
-    await toTransaction.save();
-
-    // Update both users' wallets
-    fromUser.wallet.balance -= amount;
-    fromUser.wallet.spent += amount;
-    toUser.wallet.balance += amount;
-    toUser.wallet.earned += amount;
-
-    await fromUser.save();
-    await toUser.save();
-
-    // Check for achievements for the recipient
-    const newAchievements = [];
-    const currentBadges = toUser.achievements.badges.map(badge => badge.name);
-
-    // Check for credit-based achievements
-    if (toUser.wallet.earned >= 100 && !currentBadges.includes('Credit Collector')) {
-      newAchievements.push({
-        name: 'Credit Collector',
-        description: 'Earned 100+ credits',
-        icon: '💰',
-        category: 'credits'
-      });
-    }
-
-    if (toUser.wallet.earned >= 500 && !currentBadges.includes('Credit Master')) {
-      newAchievements.push({
-        name: 'Credit Master',
-        description: 'Earned 500+ credits',
-        icon: '💎',
-        category: 'credits'
-      });
-    }
-
-    // Add new achievements
-    if (newAchievements.length > 0) {
-      toUser.achievements.badges.push(...newAchievements);
-      toUser.achievements.totalBadges = toUser.achievements.badges.length;
-      
-      // Recalculate experience and level
-      toUser.achievements.experience = toUser.achievements.totalBadges * 10 + toUser.rating.count * 5 + Math.floor(toUser.wallet.earned / 10);
-      toUser.achievements.level = Math.floor(toUser.achievements.experience / 100) + 1;
-      
-      await toUser.save();
-    }
-
-    res.json({
-      message: 'Transfer completed successfully',
-      newBalance: fromUser.wallet.balance,
-      newAchievements: newAchievements.length > 0 ? newAchievements : null
-    });
-  } catch (error) {
-    console.error('Transfer error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-module.exports = router; 
+module.exports = { router, setIO }; 

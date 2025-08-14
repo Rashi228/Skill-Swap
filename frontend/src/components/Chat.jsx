@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FaPaperPlane, FaEdit, FaTrash, FaReply, FaTimes, FaVideo, FaPaperclip } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
-import { useSocket } from '../context/SocketContext';
+import { useSocket } from '../hooks/useSocket';
 import ChatService from '../services/chatService';
 
 const Chat = ({ conversationId, onClose }) => {

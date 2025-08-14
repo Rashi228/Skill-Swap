@@ -2,11 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { FaUserCircle, FaEdit, FaSave, FaTools, FaLightbulb, FaWallet, FaCalendarAlt, FaStar, FaCamera, FaMedal, FaShareAlt, FaCog, FaLink, FaCopy, FaBell, FaCheckCircle, FaExchangeAlt, FaComments, FaPlus, FaTrash, FaTimes, FaClock } from 'react-icons/fa';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../hooks/useSocket';
 import userService from '../services/userService';
 import NotificationService from '../services/notificationService';
 import referralService from '../services/referralService';
 import webinarService from '../services/webinarService';
+import ReviewService from '../services/reviewService';
+import AchievementService from '../services/achievementService';
 import Calendar from '../components/Calendar';
+import ReviewForm from '../components/ReviewForm';
 
 const tabList = [
   { key: 'skills', label: 'My Skills', icon: <FaTools /> },
@@ -19,13 +23,14 @@ const tabList = [
   { key: 'badges', label: 'Achievements', icon: <FaMedal /> },
   { key: 'referral', label: 'Invite Friends', icon: <FaShareAlt /> },
   { key: 'calendar', label: 'Calendar', icon: <FaCalendarAlt /> },
-  { key: 'settings', label: 'Settings', icon: <FaCog /> },
+  // { key: 'settings', label: 'Settings', icon: <FaCog /> },
   { key: 'notifications', label: 'Notifications', icon: <FaBell /> },
 ];
 
 const Dashboard = () => {
   const location = useLocation();
   const { user: authUser, token, fetchUnreadCount } = useAuth();
+  const { socket } = useSocket();
   
   // User data state - starts empty
   const [user, setUser] = useState({
@@ -87,6 +92,10 @@ const Dashboard = () => {
   const [webinarsLoading, setWebinarsLoading] = useState(false);
   const [showCreateWebinar, setShowCreateWebinar] = useState(false);
   const [editingWebinarId, setEditingWebinarId] = useState(null);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [selectedUserForReview, setSelectedUserForReview] = useState(null);
+  const [userReviews, setUserReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
   const [webinarForm, setWebinarForm] = useState({
     title: '',
     description: '',
@@ -237,6 +246,15 @@ const Dashboard = () => {
     }
   }, [activeTab]);
 
+  // Load reviews when reputation tab is active
+  useEffect(() => {
+    if (activeTab === 'reputation') {
+      loadUserReviews();
+      // Also refresh user data to get latest reputation
+      refreshUserData();
+    }
+  }, [activeTab]);
+
   // Load referral stats when referral tab is active
   useEffect(() => {
     if (activeTab === 'referral') {
@@ -247,12 +265,107 @@ const Dashboard = () => {
     }
   }, [activeTab]);
 
-  // Check for new achievements when component mounts
+  // Listen for real-time updates
   useEffect(() => {
-    if (token && user.name) {
-      checkNewAchievements();
-    }
-  }, [token, user.name]);
+    if (!socket) return;
+
+    // Listen for profile updates
+    const handleProfileUpdate = (data) => {
+      console.log('Profile updated in real-time:', data);
+      if (data.userId === authUser?._id) {
+        setUser(prevUser => ({
+          ...prevUser,
+          name: `${data.profile.firstName} ${data.profile.lastName}`,
+          bio: data.profile.bio || '',
+          city: data.profile.location || '',
+          age: data.profile.age || '',
+          language: data.profile.language || '',
+          profilePic: data.profile.profilePicture || '',
+          skills: data.profile.skills?.map(skill => skill.name) || [],
+          wants: data.profile.skillsToLearn?.map(skill => skill.name) || [],
+          timeBalance: data.profile.wallet?.balance || 0,
+          reputation: data.profile.rating?.average || 0,
+          reviews: data.profile.rating?.count || 0,
+          badges: data.profile.achievements?.badges || [],
+          achievements: data.profile.achievements || prevUser.achievements,
+          links: data.profile.links || []
+        }));
+        setSuccess('Profile updated in real-time!');
+        setTimeout(() => setSuccess(''), 3000);
+      }
+    };
+
+    // Listen for new achievements
+    const handleNewAchievement = (data) => {
+      console.log('New achievement earned:', data);
+      
+      // Update user achievements
+      if (data.newAchievements && data.newAchievements.length > 0) {
+        setUser(prevUser => ({
+          ...prevUser,
+          achievements: {
+            ...prevUser.achievements,
+            badges: [...(prevUser.achievements?.badges || []), ...data.newAchievements],
+            totalBadges: data.totalBadges,
+            level: data.level,
+            experience: data.experience
+          }
+        }));
+        
+        // Show success message for each new achievement
+        const achievementNames = data.newAchievements.map(a => a.name).join(', ');
+        setSuccess(`🎉 New achievements earned: ${achievementNames}!`);
+        setTimeout(() => setSuccess(''), 5000);
+      } else if (data.newAchievement) {
+        setUser(prevUser => ({
+          ...prevUser,
+          achievements: {
+            ...prevUser.achievements,
+            badges: [...(prevUser.achievements?.badges || []), data.newAchievement],
+            totalBadges: data.totalBadges,
+            level: data.level,
+            experience: data.experience
+          }
+        }));
+        
+        setSuccess(`🎉 New achievement earned: ${data.newAchievement.name}!`);
+        setTimeout(() => setSuccess(''), 5000);
+      }
+    };
+
+    // Listen for calendar updates
+    const handleCalendarUpdate = (data) => {
+      console.log('Calendar updated in real-time:', data);
+      setCalendarSwaps(data.swaps || []);
+      setSuccess('Calendar updated in real-time!');
+      setTimeout(() => setSuccess(''), 3000);
+    };
+
+    // Listen for wallet updates
+    const handleWalletUpdate = (data) => {
+      console.log('Wallet updated in real-time:', data);
+      setUser(prevUser => ({
+        ...prevUser,
+        timeBalance: data.balance
+      }));
+      setSuccess('Wallet balance updated in real-time!');
+      setTimeout(() => setSuccess(''), 3000);
+    };
+
+    socket.on('user_profile_updated', handleProfileUpdate);
+    socket.on('new_achievement', handleNewAchievement);
+    socket.on('calendar_data_updated', handleCalendarUpdate);
+    socket.on('wallet_balance_updated', handleWalletUpdate);
+
+    return () => {
+      socket.off('user_profile_updated', handleProfileUpdate);
+      socket.off('new_achievement', handleNewAchievement);
+      socket.off('calendar_data_updated', handleCalendarUpdate);
+      socket.off('wallet_balance_updated', handleWalletUpdate);
+    };
+  }, [socket, authUser]);
+
+
 
   // Load calendar events
   const loadCalendarEvents = async () => {
@@ -305,18 +418,85 @@ const Dashboard = () => {
     }
   };
 
+  // Load user reviews
+  const loadUserReviews = async () => {
+    if (token && authUser) {
+      try {
+        setReviewsLoading(true);
+        const response = await ReviewService.getUserReviews(authUser._id);
+        if (response.success) {
+          setUserReviews(response.reviews);
+        }
+      } catch (error) {
+        console.error('Failed to load user reviews:', error);
+      } finally {
+        setReviewsLoading(false);
+      }
+    }
+  };
+
+  // Calculate rating breakdown from actual reviews
+  const calculateRatingBreakdown = () => {
+    if (!userReviews || userReviews.length === 0) {
+      return { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    }
+
+    const breakdown = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    userReviews.forEach(review => {
+      if (review.rating >= 1 && review.rating <= 5) {
+        breakdown[review.rating]++;
+      }
+    });
+
+    // Calculate percentages
+    const total = userReviews.length;
+    const percentages = {};
+    Object.keys(breakdown).forEach(rating => {
+      percentages[rating] = Math.round((breakdown[rating] / total) * 100);
+    });
+
+    return { breakdown, percentages };
+  };
+
+  // Refresh user data to get latest reputation
+  const refreshUserData = async () => {
+    if (token && authUser) {
+      try {
+        console.log('refreshUserData: Starting refresh...');
+        const result = await userService.getCurrentUser(token);
+        if (result.success) {
+          const backendUser = result.user;
+          console.log('refreshUserData: Backend user rating data:', backendUser.rating);
+          const newReputation = backendUser.rating?.average || 0;
+          const newReviews = backendUser.rating?.count || 0;
+          console.log('refreshUserData: Setting reputation to:', newReputation, 'reviews to:', newReviews);
+          setUser(prevUser => {
+            console.log('refreshUserData: Previous user state:', prevUser.reputation, prevUser.reviews);
+            const updatedUser = {
+              ...prevUser,
+              reputation: newReputation,
+              reviews: newReviews
+            };
+            console.log('refreshUserData: Updated user state:', updatedUser.reputation, updatedUser.reviews);
+            return updatedUser;
+          });
+        }
+      } catch (error) {
+        console.error('Failed to refresh user data:', error);
+      }
+    }
+  };
+
   // Load achievements
   const loadAchievements = async () => {
     if (token) {
       try {
-        const result = await userService.getAchievements(token);
+        const result = await AchievementService.getUserAchievements(token);
         if (result.success) {
           setUser(prev => ({
             ...prev,
             achievements: result.achievements,
-            badges: result.achievements.badges,
-            reputation: result.rating.average,
-            reviews: result.rating.count
+            badges: result.achievements.badges
           }));
         }
       } catch (error) {
@@ -325,25 +505,7 @@ const Dashboard = () => {
     }
   };
 
-  // Check for new achievements
-  const checkNewAchievements = async () => {
-    if (token) {
-      try {
-        const result = await userService.checkAchievements(token);
-        if (result.success && result.newAchievements.length > 0) {
-          setUser(prev => ({
-            ...prev,
-            achievements: result.achievements,
-            badges: result.achievements.badges
-          }));
-          setSuccess(`🎉 New achievements earned: ${result.newAchievements.map(a => a.name).join(', ')}`);
-          setTimeout(() => setSuccess(''), 5000);
-        }
-      } catch (error) {
-        console.error('Failed to check achievements:', error);
-      }
-    }
-  };
+
 
   // Handle adding calendar event
   const handleAddCalendarEvent = async (eventData) => {
@@ -444,13 +606,10 @@ const Dashboard = () => {
 
       const result = await userService.updateSkills(token, skillsData);
       
-      if (result.success) {
-        setSuccess('Skills updated successfully!');
-        setTimeout(() => setSuccess(''), 3000);
-        
-        // Check for new achievements after updating skills
-        await checkNewAchievements();
-      } else {
+             if (result.success) {
+         setSuccess('Skills updated successfully!');
+         setTimeout(() => setSuccess(''), 3000);
+       } else {
         setError(result.error || 'Failed to update skills');
       }
     } catch (error) {
@@ -721,10 +880,10 @@ const Dashboard = () => {
                       ))}
                     </div>
                   )}
-                  <div className="mt-3 mb-2">
-                    <span className="me-2"><FaStar className="text-warning" /> <b>{user.reputation}</b></span>
-                    <span className="text-light">({user.reviews} reviews)</span>
-                  </div>
+                                     <div className="mt-3 mb-2">
+                     <span className="me-2"><FaStar className="text-warning" /> <b>{user.reputation || 0}</b></span>
+                     <span className="text-light">({user.reviews || 0} reviews)</span>
+                   </div>
                   <button className="btn btn-outline-light w-100" onClick={()=>setEditProfile(true)}><FaEdit className="me-1" />Edit Profile</button>
                 </>
               )}
@@ -1131,62 +1290,143 @@ Participants can join using the same link.`;
                 </div>
               )}
 
-              {activeTab==='reputation' && (
-                <div className="text-center">
-                  <h5 className="mb-3">Your Reputation</h5>
-                  <div className="display-5 fw-bold mb-2" style={{color:'#185a9d'}}>
-                    <FaStar className="text-warning mb-1" /> 
-                    {user.reputation > 0 ? user.reputation.toFixed(1) : '0.0'}
-                  </div>
-                  <div className="text-secondary mb-3">
-                    Based on {user.reviews} {user.reviews === 1 ? 'review' : 'reviews'} from other users.
-                  </div>
-                  
-                  {/* Rating breakdown */}
-                  {user.reviews > 0 && (
-                    <div className="row justify-content-center mb-4">
-                      <div className="col-md-6">
-                        <div className="card border-0 shadow-sm">
-                          <div className="card-body">
-                            <h6 className="card-title">Rating Breakdown</h6>
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                              <span>5 stars</span>
-                              <div className="progress flex-grow-1 mx-2" style={{height: '8px'}}>
-                                <div className="progress-bar bg-warning" style={{width: '75%'}}></div>
-                              </div>
-                              <span>75%</span>
-                            </div>
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                              <span>4 stars</span>
-                              <div className="progress flex-grow-1 mx-2" style={{height: '8px'}}>
-                                <div className="progress-bar bg-warning" style={{width: '20%'}}></div>
-                              </div>
-                              <span>20%</span>
-                            </div>
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                              <span>3 stars</span>
-                              <div className="progress flex-grow-1 mx-2" style={{height: '8px'}}>
-                                <div className="progress-bar bg-warning" style={{width: '5%'}}></div>
-                              </div>
-                              <span>5%</span>
-                            </div>
-                          </div>
-                        </div>
+                             {activeTab==='reputation' && (
+                 <div>
+                   <div className="d-flex justify-content-between align-items-center mb-3">
+                     <h5>Your Reputation & Reviews</h5>
+                   </div>
+
+                   {/* Overall Rating */}
+                    <div className="text-center mb-4">
+                      <div className="display-5 fw-bold mb-2" style={{color:'#185a9d'}}>
+                        <FaStar className="text-warning mb-1" /> 
+                        {user.reputation > 0 ? user.reputation.toFixed(1) : '0.0'}
+                      </div>
+                      <div className="text-secondary mb-3">
+                        Based on {user.reviews || 0} {(user.reviews || 0) === 1 ? 'review' : 'reviews'} from other users.
                       </div>
                     </div>
-                  )}
-                  
-                  <div className="mt-4">
-                    <p className="text-muted">Start swapping skills to build your reputation!</p>
-                    <button 
-                      className="btn btn-outline-primary"
-                      onClick={checkNewAchievements}
-                    >
-                      Check for New Achievements
-                    </button>
-                  </div>
-                </div>
-              )}
+
+                   {/* Review Form Modal */}
+                   {showReviewForm && (
+                     <div className="modal fade show d-block" style={{backgroundColor: 'rgba(0,0,0,0.5)'}}>
+                       <div className="modal-dialog modal-lg">
+                         <div className="modal-content">
+                           <div className="modal-header">
+                             <h5 className="modal-title">Give a Review</h5>
+                             <button 
+                               type="button" 
+                               className="btn-close" 
+                               onClick={() => setShowReviewForm(false)}
+                             ></button>
+                           </div>
+                           <div className="modal-body">
+                             <ReviewForm
+                               reviewedUser={user}
+                               onReviewSubmitted={() => {
+                                 setShowReviewForm(false);
+                                 loadUserReviews();
+                                 refreshUserData(); // Refresh user data to update reputation stats
+                               }}
+                               onCancel={() => setShowReviewForm(false)}
+                               context="general"
+                             />
+                           </div>
+                         </div>
+                       </div>
+                     </div>
+                   )}
+
+                   {/* Reviews List */}
+                   <div className="mb-4">
+                     <h6 className="mb-3">Recent Reviews</h6>
+                     {reviewsLoading ? (
+                       <div className="text-center py-4">
+                         <div className="spinner-border text-primary" role="status">
+                           <span className="visually-hidden">Loading...</span>
+                         </div>
+                       </div>
+                     ) : userReviews.length === 0 ? (
+                       <div className="text-center text-secondary py-4">
+                         <FaStar size={48} className="mb-3" />
+                         <p>No reviews yet. Start interacting with others to receive reviews!</p>
+                       </div>
+                     ) : (
+                       <div className="list-group">
+                         {userReviews.map(review => (
+                           <div key={review._id} className="list-group-item border-0 shadow-sm mb-2">
+                             <div className="d-flex justify-content-between align-items-start">
+                               <div className="flex-grow-1">
+                                 <div className="d-flex align-items-center mb-2">
+                                   <img 
+                                     src={review.reviewer.profilePicture || '/default-avatar.png'} 
+                                     alt="Reviewer" 
+                                     className="rounded-circle me-2" 
+                                     style={{width: '32px', height: '32px'}}
+                                   />
+                                   <div>
+                                     <strong>{review.reviewer.firstName} {review.reviewer.lastName}</strong>
+                                     <div className="d-flex align-items-center">
+                                       {[1, 2, 3, 4, 5].map(star => (
+                                         <FaStar 
+                                           key={star} 
+                                           className={`${star <= review.rating ? 'text-warning' : 'text-muted'}`}
+                                           size={12}
+                                         />
+                                       ))}
+                                       <span className="ms-2 text-muted">{review.rating}.0</span>
+                                     </div>
+                                   </div>
+                                 </div>
+                                 <p className="mb-2">{review.comment}</p>
+                                 <div className="d-flex justify-content-between align-items-center">
+                                   <small className="text-muted">
+                                     {review.category} • {new Date(review.createdAt).toLocaleDateString()}
+                                   </small>
+                                   <small className="text-muted">
+                                     {review.helpfulCount} found helpful
+                                   </small>
+                                 </div>
+                               </div>
+                             </div>
+                           </div>
+                         ))}
+                       </div>
+                     )}
+                   </div>
+
+                   {/* Rating Breakdown */}
+                   {user.reviews > 0 && userReviews.length > 0 && (
+                     <div className="row justify-content-center mb-4">
+                       <div className="col-md-8">
+                         <div className="card border-0 shadow-sm">
+                           <div className="card-body">
+                             <h6 className="card-title">Rating Breakdown</h6>
+                             {(() => {
+                               const { breakdown, percentages } = calculateRatingBreakdown();
+                               return [5, 4, 3, 2, 1].map(rating => (
+                                 breakdown[rating] > 0 && (
+                                   <div key={rating} className="d-flex justify-content-between align-items-center mb-2">
+                                     <span>{rating} {rating === 1 ? 'star' : 'stars'}</span>
+                                     <div className="progress flex-grow-1 mx-2" style={{height: '8px'}}>
+                                       <div className="progress-bar bg-warning" style={{width: `${percentages[rating]}%`}}></div>
+                                     </div>
+                                     <span>{percentages[rating]}%</span>
+                                   </div>
+                                 )
+                               ));
+                             })()}
+                           </div>
+                         </div>
+                       </div>
+                     </div>
+                   )}
+                   
+                   <div className="mt-4 text-center">
+                     <p className="text-muted">Start swapping skills to build your reputation!</p>
+                   </div>
+                 </div>
+               )}
 
               {activeTab==='badges' && (
                 <div className="text-center">
@@ -1214,41 +1454,28 @@ Participants can join using the same link.`;
                     </div>
                   </div>
 
-                  {user.achievements.badges.length === 0 ? (
-                    <div className="text-secondary py-4">
-                      <FaMedal size={48} className="mb-3" />
-                      <p>No badges yet. Complete swaps and activities to earn badges!</p>
-                      <button 
-                        className="btn btn-outline-primary"
-                        onClick={checkNewAchievements}
-                      >
-                        Check for New Achievements
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="d-flex flex-wrap justify-content-center gap-3 mb-4">
-                        {user.achievements.badges.map((badge, idx) => (
-                          <div key={idx} className="card border-0 shadow-sm" style={{minWidth: '200px'}}>
-                            <div className="card-body text-center">
-                              <div className="fs-1 mb-2">{badge.icon}</div>
-                              <h6 className="card-title">{badge.name}</h6>
-                              <p className="card-text text-muted small">{badge.description}</p>
-                              <small className="text-secondary">
-                                Earned {new Date(badge.earnedAt).toLocaleDateString()}
-                              </small>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <button 
-                        className="btn btn-outline-primary"
-                        onClick={checkNewAchievements}
-                      >
-                        Check for New Achievements
-                      </button>
-                    </>
-                  )}
+                                     {user.achievements.badges.length === 0 ? (
+                     <div className="text-secondary py-4">
+                       <FaMedal size={48} className="mb-3" />
+                       <p>No badges yet. Complete swaps and activities to earn badges automatically!</p>
+                       <small className="text-muted">Badges are awarded automatically based on your activities like earning credits, adding skills, receiving reviews, and completing swaps.</small>
+                     </div>
+                   ) : (
+                     <div className="d-flex flex-wrap justify-content-center gap-3 mb-4">
+                       {user.achievements.badges.map((badge, idx) => (
+                         <div key={idx} className="card border-0 shadow-sm" style={{minWidth: '200px'}}>
+                           <div className="card-body text-center">
+                             <div className="fs-1 mb-2">{badge.icon}</div>
+                             <h6 className="card-title">{badge.name}</h6>
+                             <p className="card-text text-muted small">{badge.description}</p>
+                             <small className="text-secondary">
+                               Earned {new Date(badge.earnedAt).toLocaleDateString()}
+                             </small>
+                           </div>
+                         </div>
+                       ))}
+                     </div>
+                   )}
                 </div>
               )}
 
@@ -1347,7 +1574,7 @@ Participants can join using the same link.`;
                 </div>
               )}
 
-              {activeTab==='settings' && (
+              {/* {activeTab==='settings' && (
                 <div style={{maxWidth:'400px',margin:'0 auto'}}>
                   <h5 className="mb-3">Settings</h5>
                   <div className="mb-3">
@@ -1364,7 +1591,7 @@ Participants can join using the same link.`;
                   </div>
                   <button className="btn btn-primary w-100">Save Settings</button>
                 </div>
-              )}
+              )} */}
 
               {activeTab==='notifications' && (
                 <div>

@@ -2,8 +2,17 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const { auth, adminAuth } = require('../middleware/auth');
+const CreditService = require('../services/creditService');
 
 const router = express.Router();
+
+// Socket.io instance (will be set by server.js)
+let io = null;
+const setIO = (socketIO) => {
+  io = socketIO;
+};
+
+module.exports = { router, setIO };
 
 // @route   GET /api/users
 // @desc    Get all users (with pagination and filters)
@@ -107,6 +116,31 @@ router.put('/profile', [
     await user.save();
     console.log('Profile saved successfully');
 
+    // Emit socket event for profile update
+    if (io) {
+      io.emit('user_profile_updated', {
+        userId: user._id,
+        profile: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          fullName: user.fullName,
+          bio: user.bio,
+          location: user.location,
+          age: user.age,
+          language: user.language,
+          profilePicture: user.profilePicture,
+          links: user.links,
+          skills: user.skills,
+          skillsToLearn: user.skillsToLearn,
+          rating: user.rating,
+          wallet: user.wallet
+        }
+      });
+    }
+
     res.json({
       message: 'Profile updated successfully',
       user: {
@@ -155,10 +189,22 @@ router.put('/skills', [
 
     const { skills, skillsToLearn } = req.body;
     
+    const oldSkills = [...user.skills];
+    
     if (skills !== undefined) user.skills = skills;
     if (skillsToLearn !== undefined) user.skillsToLearn = skillsToLearn;
 
     await user.save();
+
+    // Award credits for new skills
+    const newSkills = skills || [];
+    const addedSkills = newSkills.filter(newSkill => 
+      !oldSkills.some(oldSkill => oldSkill.name === newSkill.name)
+    );
+
+    for (const skill of addedSkills) {
+      await CreditService.awardSkillCredit(user._id, skill.name);
+    }
 
     // Check for new achievements after updating skills
     const newAchievements = [];
@@ -193,6 +239,40 @@ router.put('/skills', [
       user.achievements.level = Math.floor(user.achievements.experience / 100) + 1;
       
       await user.save();
+
+      // Emit socket event for new achievements
+      if (io) {
+        newAchievements.forEach(achievement => {
+          io.to(`user_${user._id}`).emit('new_achievement', {
+            achievement
+          });
+        });
+      }
+    }
+
+    // Emit socket event for profile update (skills changed)
+    if (io) {
+      io.emit('user_profile_updated', {
+        userId: user._id,
+        profile: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          fullName: user.fullName,
+          bio: user.bio,
+          location: user.location,
+          age: user.age,
+          language: user.language,
+          profilePicture: user.profilePicture,
+          links: user.links,
+          skills: user.skills,
+          skillsToLearn: user.skillsToLearn,
+          rating: user.rating,
+          wallet: user.wallet
+        }
+      });
     }
 
     res.json({
@@ -462,6 +542,4 @@ router.post('/achievements/check', auth, async (req, res) => {
     console.error('Check achievements error:', error);
     res.status(500).json({ error: 'Server error' });
   }
-});
-
-module.exports = router; 
+}); 

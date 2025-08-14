@@ -4,6 +4,7 @@ const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
 const NotificationService = require('../utils/notificationService');
+const CreditService = require('../services/creditService');
 
 const router = express.Router();
 
@@ -172,6 +173,12 @@ router.post('/login', [
     // Generate token
     const token = generateToken(user._id);
 
+    // Award daily login credit
+    const dailyCreditResult = await CreditService.awardDailyLoginCredit(user._id);
+    
+    // Check for profile completion credit
+    const profileCreditResult = await CreditService.awardProfileCompletionCredit(user._id);
+
     // Update last active
     user.lastActive = new Date();
     await user.save();
@@ -188,6 +195,10 @@ router.post('/login', [
         fullName: user.fullName,
         isAdmin: user.isAdmin,
         isVerified: user.isVerified
+      },
+            creditsAwarded: {
+        daily: dailyCreditResult.success ? 1 : 0,
+        profile: profileCreditResult.success ? 5 : 0
       }
     });
   } catch (error) {

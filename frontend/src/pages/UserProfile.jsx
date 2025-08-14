@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { FaUserCircle, FaStar, FaTools, FaLightbulb, FaMapMarkerAlt, FaLink, FaExchangeAlt, FaComments, FaArrowLeft, FaMedal, FaCalendarAlt, FaCheckCircle, FaTimes } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
-import { useSocket } from '../context/SocketContext';
+import { useSocket } from '../hooks/useSocket';
 import userService from '../services/userService';
 
 const UserProfile = () => {

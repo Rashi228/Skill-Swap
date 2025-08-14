@@ -590,6 +590,34 @@ router.put('/:id/schedule', [
     await swap.populate('requester', 'firstName lastName username');
     await swap.populate('recipient', 'firstName lastName username');
 
+    // Emit socket events for real-time calendar updates to both users
+    if (io) {
+      // Get updated calendar data for both users
+      const requesterSwaps = await Swap.find({
+        $or: [
+          { requester: swap.requester, status: { $in: ['accepted', 'scheduled', 'completed'] } },
+          { recipient: swap.requester, status: { $in: ['accepted', 'scheduled', 'completed'] } }
+        ]
+      }).populate('requester recipient', 'firstName lastName username');
+
+      const recipientSwaps = await Swap.find({
+        $or: [
+          { requester: swap.recipient, status: { $in: ['accepted', 'scheduled', 'completed'] } },
+          { recipient: swap.recipient, status: { $in: ['accepted', 'scheduled', 'completed'] } }
+        ]
+      }).populate('requester recipient', 'firstName lastName username');
+
+      // Emit to requester
+      io.to(`user_${swap.requester}`).emit('calendar_data_updated', {
+        swaps: requesterSwaps
+      });
+
+      // Emit to recipient
+      io.to(`user_${swap.recipient}`).emit('calendar_data_updated', {
+        swaps: recipientSwaps
+      });
+    }
+
     res.json({
       message: 'Swap session scheduled successfully',
       swap
