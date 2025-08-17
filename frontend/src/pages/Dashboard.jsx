@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaUserCircle, FaEdit, FaSave, FaTools, FaLightbulb, FaWallet, FaCalendarAlt, FaStar, FaCamera, FaMedal, FaShareAlt, FaCog, FaLink, FaCopy, FaBell, FaCheckCircle, FaExchangeAlt, FaComments, FaPlus, FaTrash, FaTimes, FaClock } from 'react-icons/fa';
+import { FaUserCircle, FaEdit, FaSave, FaTools, FaLightbulb, FaWallet, FaCalendarAlt, FaStar, FaCamera, FaMedal, FaShareAlt, FaCog, FaLink, FaCopy, FaBell, FaCheckCircle, FaExchangeAlt, FaComments, FaPlus, FaTrash, FaTimes, FaClock, FaSignOutAlt } from 'react-icons/fa';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../hooks/useSocket';
@@ -28,7 +28,7 @@ const tabList = [
 
 const Dashboard = () => {
   const location = useLocation();
-  const { user: authUser, token, fetchUnreadCount } = useAuth();
+  const { user: authUser, token, fetchUnreadCount, logout } = useAuth();
   const { socket } = useSocket();
   
   // User data state - starts empty
@@ -1418,6 +1418,18 @@ const Dashboard = () => {
               )}
             </div>
           </div>
+        </div>
+        
+        {/* Logout Section */}
+        <div className="text-center mt-5 pt-4 border-top">
+          <button 
+            className="btn btn-outline-danger btn-lg px-5"
+            onClick={logout}
+            style={{ borderRadius: '2rem' }}
+          >
+            <FaSignOutAlt className="me-2" />
+            Logout
+          </button>
         </div>
       </div>
     </div>

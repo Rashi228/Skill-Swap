@@ -76,10 +76,7 @@ function Navbar() {
           ) : (
             <>
               <Nav.Item className="ms-2">
-                <Button as={Link} to="/login" variant="primary" className="px-4">Login</Button>
-              </Nav.Item>
-              <Nav.Item className="ms-2">
-                <Button as={Link} to="/register" variant="outline-light" className="px-4">Sign Up</Button>
+                <Button as={Link} to="/login" variant="outline-light" className="px-4">Sign In</Button>
               </Nav.Item>
             </>
           )}
