@@ -257,7 +257,7 @@ const SwapManagement = () => {
       <div className="container">
         {/* Header */}
         <div className="text-center mb-5">
-          <h1 className="fw-bold mb-3" style={{color:'#185a9d'}}>My Swaps</h1>
+          <h1 className="fw-bold mb-3" style={{color:'#185a9d'}}>Dashboard</h1>
           <p className="text-secondary">Manage your skill swap requests and ongoing exchanges</p>
         </div>
 
