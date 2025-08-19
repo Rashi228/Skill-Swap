@@ -24,21 +24,36 @@ import Webinars from './pages/Webinars';
 import WebinarManager from './pages/WebinarManager';
 
 
-import { Container, Nav, Navbar as RBNavbar, Button } from 'react-bootstrap';
+import { Container, Nav, Navbar as RBNavbar, Button, Offcanvas } from 'react-bootstrap';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function Navbar() {
   const navigate = useNavigate();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const [showMenu, setShowMenu] = useState(false);
+  const displayName = user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : (user?.name || 'User');
   return (
     <RBNavbar className="navbar-custom" variant="dark" expand="lg">
       <Container fluid>
         <RBNavbar.Brand as={Link} to="/" className="attractive">
           SkillSwap
         </RBNavbar.Brand>
-        <Nav className="align-items-center">
+
+        {/* Mobile right controls */}
+        <div className="ms-auto d-lg-none">
+          {isAuthenticated ? (
+            <Button variant="outline-light" className="px-3" onClick={() => setShowMenu(true)} aria-label="Open menu">
+              <i className="bi bi-list" style={{ fontSize: '1.25rem' }}></i>
+            </Button>
+          ) : (
+            <Button as={Link} to="/login" variant="outline-light" className="px-4">Sign In</Button>
+          )}
+        </div>
+
+        {/* Desktop nav */}
+        <Nav className="align-items-center d-none d-lg-flex">
           {isAuthenticated ? (
             <>
               <Nav.Link as={Link} to="/dashboard">Dashboard</Nav.Link>
@@ -82,6 +97,41 @@ function Navbar() {
           )}
         </Nav>
       </Container>
+
+      {/* Mobile sidebar menu */}
+      {isAuthenticated && (
+        <Offcanvas placement="end" show={showMenu} onHide={() => setShowMenu(false)} className="mobile-offcanvas">
+          <Offcanvas.Header closeButton>
+            <Offcanvas.Title>Menu</Offcanvas.Title>
+          </Offcanvas.Header>
+          <Offcanvas.Body>
+            <div className="d-flex align-items-center mb-4" role="button" onClick={() => { setShowMenu(false); navigate('/profile'); }}>
+              <div 
+                className="me-3"
+                style={{
+                  width: '56px', height: '56px', borderRadius: '50%',
+                  background: user?.profilePic ? `url(${user.profilePic})` : '#e5e7eb',
+                  backgroundSize: 'cover', backgroundPosition: 'center',
+                  border: '2px solid #1e3a8a', color: '#1e3a8a',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700
+                }}
+              >
+                {!user?.profilePic && (user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U')}
+              </div>
+              <div>
+                <div className="fw-bold">{displayName}</div>
+                <div className="text-muted small">View Profile</div>
+              </div>
+            </div>
+            <div className="list-group list-group-flush">
+              <Link to="/dashboard" className="list-group-item list-group-item-action" onClick={() => setShowMenu(false)}>Dashboard</Link>
+              <Link to="/users" className="list-group-item list-group-item-action" onClick={() => setShowMenu(false)}>Discover Users</Link>
+              <Link to="/wallet" className="list-group-item list-group-item-action" onClick={() => setShowMenu(false)}>Wallet</Link>
+              {/* <Link to="/webinars" className="list-group-item list-group-item-action" onClick={() => setShowMenu(false)}>Webinars</Link> */}
+            </div>
+          </Offcanvas.Body>
+        </Offcanvas>
+      )}
     </RBNavbar>
   );
 }
