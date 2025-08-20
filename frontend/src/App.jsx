@@ -11,7 +11,6 @@ import EmailService from './services/emailService';
 import UserProfile from './pages/UserProfile';
 import UserDiscovery from './pages/UserDiscovery';
 import SwapManagement from './pages/SwapManagement';
-import { FaBell } from 'react-icons/fa';
 import About from './pages/About';
 import FAQ from './pages/FAQ';
 import Contact from './pages/Contact';
@@ -25,54 +24,114 @@ import Webinars from './pages/Webinars';
 import WebinarManager from './pages/WebinarManager';
 
 
-import { Container, Nav, Navbar as RBNavbar, Button } from 'react-bootstrap';
+import { Container, Nav, Navbar as RBNavbar, Button, Offcanvas } from 'react-bootstrap';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function Navbar() {
   const navigate = useNavigate();
-  const { user, isAuthenticated, logout, unreadNotifications } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const [showMenu, setShowMenu] = useState(false);
+  const displayName = user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : (user?.name || 'User');
   return (
-    <RBNavbar bg="primary" variant="dark" expand="lg">
+    <RBNavbar className="navbar-custom" variant="dark" expand="lg">
       <Container fluid>
-        <RBNavbar.Brand as={Link} to="/" className="attractive" style={{ fontFamily: 'Pacifico, cursive', fontWeight: 700, fontSize: '2.4rem', letterSpacing: '2px', color: '#185a9d', background: 'none', WebkitBackgroundClip: 'unset', WebkitTextFillColor: 'unset', backgroundClip: 'unset', textFillColor: 'unset', textShadow: '0 2px 8px rgba(24,90,157,0.10)' }}>
+        <RBNavbar.Brand as={Link} to="/" className="attractive">
           SkillSwap
         </RBNavbar.Brand>
-        <Nav className="align-items-center">
-          <Nav.Link as={Link} to="/about">About</Nav.Link>
-          <Nav.Link as={Link} to="/faq">FAQ</Nav.Link>
-          <Nav.Link as={Link} to="/contact">Contact</Nav.Link>
+
+        {/* Mobile right controls */}
+        <div className="ms-auto d-lg-none">
+          {isAuthenticated ? (
+            <Button variant="outline-light" className="px-3" onClick={() => setShowMenu(true)} aria-label="Open menu">
+              <i className="bi bi-list" style={{ fontSize: '1.25rem' }}></i>
+            </Button>
+          ) : (
+            <Button as={Link} to="/login" variant="outline-light" className="px-4">Sign In</Button>
+          )}
+        </div>
+
+        {/* Desktop nav */}
+        <Nav className="align-items-center d-none d-lg-flex">
           {isAuthenticated ? (
             <>
               <Nav.Link as={Link} to="/dashboard">Dashboard</Nav.Link>
               <Nav.Link as={Link} to="/users">Discover Users</Nav.Link>
-              <Nav.Link as={Link} to="/swaps">My Swaps</Nav.Link>
-              <Nav.Link as={Link} to="/webinars">Webinars</Nav.Link>
+              {/* <Nav.Link as={Link} to="/webinars">Webinars</Nav.Link> */}
               <Nav.Link as={Link} to="/wallet">Wallet</Nav.Link>
-
-              <Nav.Item className="position-relative ms-2">
-                <Button variant="link" className="nav-link p-0 bg-transparent border-0" style={{outline:'none',boxShadow:'none'}} title="Notifications" onClick={()=>navigate('/dashboard', { state: { openTab: 'notifications' } })}>
-                  <FaBell size={22} />
-                  {unreadNotifications > 0 && <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style={{fontSize:'0.7rem'}}>{unreadNotifications}</span>}
-                </Button>
-              </Nav.Item>
               <Nav.Item className="ms-2">
-                <Button variant="outline-light" className="px-4" onClick={logout}>Logout</Button>
+                <div className="d-flex align-items-center">
+                  <div 
+                    className="profile-pic-nav me-2" 
+                    onClick={() => navigate('/profile')}
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      background: user?.profilePic ? `url(${user.profilePic})` : '#ffffff',
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      border: '2px solid #ffffff',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#1e3a8a',
+                      fontSize: '1.2rem',
+                      fontWeight: 'bold'
+                    }}
+                    title="View Profile"
+                  >
+                    {!user?.profilePic && (user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U')}
+                  </div>
+                </div>
               </Nav.Item>
             </>
           ) : (
             <>
               <Nav.Item className="ms-2">
-                <Button as={Link} to="/login" variant="primary" className="px-4 text-white">Login</Button>
-              </Nav.Item>
-              <Nav.Item className="ms-2">
-                <Button as={Link} to="/register" variant="outline-light" className="px-4">Sign Up</Button>
+                <Button as={Link} to="/login" variant="outline-light" className="px-4">Sign In</Button>
               </Nav.Item>
             </>
           )}
         </Nav>
       </Container>
+
+      {/* Mobile sidebar menu */}
+      {isAuthenticated && (
+        <Offcanvas placement="end" show={showMenu} onHide={() => setShowMenu(false)} className="mobile-offcanvas">
+          <Offcanvas.Header closeButton>
+            <Offcanvas.Title>Menu</Offcanvas.Title>
+          </Offcanvas.Header>
+          <Offcanvas.Body>
+            <div className="d-flex align-items-center mb-4" role="button" onClick={() => { setShowMenu(false); navigate('/profile'); }}>
+              <div 
+                className="me-3"
+                style={{
+                  width: '56px', height: '56px', borderRadius: '50%',
+                  background: user?.profilePic ? `url(${user.profilePic})` : '#e5e7eb',
+                  backgroundSize: 'cover', backgroundPosition: 'center',
+                  border: '2px solid #1e3a8a', color: '#1e3a8a',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700
+                }}
+              >
+                {!user?.profilePic && (user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U')}
+              </div>
+              <div>
+                <div className="fw-bold">{displayName}</div>
+                <div className="text-muted small">View Profile</div>
+              </div>
+            </div>
+            <div className="list-group list-group-flush">
+              <Link to="/dashboard" className="list-group-item list-group-item-action" onClick={() => setShowMenu(false)}>Dashboard</Link>
+              <Link to="/users" className="list-group-item list-group-item-action" onClick={() => setShowMenu(false)}>Discover Users</Link>
+              <Link to="/wallet" className="list-group-item list-group-item-action" onClick={() => setShowMenu(false)}>Wallet</Link>
+              {/* <Link to="/webinars" className="list-group-item list-group-item-action" onClick={() => setShowMenu(false)}>Webinars</Link> */}
+            </div>
+          </Offcanvas.Body>
+        </Offcanvas>
+      )}
     </RBNavbar>
   );
 }
@@ -82,7 +141,77 @@ function Layout({ children }) {
     <>
       <Navbar />
       {children}
+      <Footer />
     </>
+  );
+}
+
+function Footer() {
+  const { isAuthenticated, logout } = useAuth();
+  
+  return (
+    <footer className="footer-custom py-4 mt-auto">
+      <div className="container">
+        <div className="row">
+          <div className="col-md-6">
+            <h5 className="text-white mb-3">
+              <Link to="/" className="text-white text-decoration-none">SkillSwap</Link>
+            </h5>
+            <p className=" mb-0">
+              Exchange skills, not money. Connect with learners and teachers worldwide.
+            </p>
+          </div>
+          <div className="col-md-6">
+            <div className="d-flex flex-wrap justify-content-md-end gap-3">
+              <Link to="/about" className="footer-link">About</Link>
+              <Link to="/contact" className="footer-link">Contact Us</Link>
+              <Link to="/faq" className="footer-link">FAQ</Link>
+              {isAuthenticated && (
+                <>
+                  <Link to="/wallet" className="footer-link">Wallet</Link>
+                  <button onClick={logout} className="footer-link logout-btn">Logout</button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        {/* Feedback Form Section */}
+        {/* <div className="row mt-4">
+          <div className="col-12">
+            <div className="feedback-section-footer">
+              <h6 className="text-white mb-3">We Value Your Feedback</h6>
+              <FeedbackForm />
+            </div>
+          </div>
+        </div> */}
+        
+        <hr className="footer-divider my-3" />
+        <div className="row align-items-center">
+          <div className="col-md-6">
+            <p className="text-muted mb-0">
+              © {new Date().getFullYear()} SkillSwap. All rights reserved.
+            </p>
+          </div>
+          <div className="col-md-6 text-md-end">
+            <div className="d-flex gap-3 justify-content-md-end">
+              <a href="#" className="footer-social-link">
+                <i className="bi bi-facebook"></i>
+              </a>
+              <a href="#" className="footer-social-link">
+                <i className="bi bi-twitter"></i>
+              </a>
+              <a href="#" className="footer-social-link">
+                <i className="bi bi-linkedin"></i>
+              </a>
+              <a href="#" className="footer-social-link">
+                <i className="bi bi-instagram"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
   );
 }
 
@@ -109,9 +238,14 @@ function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/dashboard" element={
+            <Route path="/profile" element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <SwapManagement />
               </ProtectedRoute>
             } />
             <Route path="/wallet" element={
@@ -283,17 +417,23 @@ function FeedbackForm() {
 }
 
 function LandingPage() {
+  const { isAuthenticated } = useAuth();
+  
   return (
     <div className="landing-page bg-gradient-primary min-vh-100 d-flex flex-column justify-content-between">
       {/* Navbar is already global */}
       <main className="container flex-grow-1 d-flex flex-column align-items-center justify-content-center" style={{ paddingLeft: 0 }}>
         {/* HERO SECTION */}
-        <div className="row w-100 align-items-center hero-section animate__animated animate__fadeIn" style={{ marginLeft: 0 }}>
+        <div className="mt-5 row w-100 align-items-center hero-section animate__animated animate__fadeIn" style={{ marginLeft: 0 }}>
           <div className="col-lg-6 mb-4 mb-lg-0 d-flex flex-column justify-content-center">
             <h1 className="hero-title mb-3">Exchange <span style={{color:'#43cea2'}}>Skills</span>, Not <span style={{color:'#185a9d'}}>Money</span></h1>
             <p className="hero-desc">SkillSwap is a platform where you can teach, learn, and grow. Trade your time and knowledge, earn time credits, and connect with a global community. No money, just skills!</p>
             <div className="d-flex gap-3">
-              <Link to="/register" className="btn btn-lg btn-primary shadow">Get Started</Link>
+              {isAuthenticated ? (
+                <Link to="/profile" className="btn btn-lg btn-primary shadow">View Profile</Link>
+              ) : (
+                <Link to="/register" className="btn btn-lg btn-primary shadow">Get Started</Link>
+              )}
               <Link to="/about" className="btn btn-lg btn-outline-secondary">Learn More</Link>
             </div>
           </div>
@@ -305,44 +445,44 @@ function LandingPage() {
         <section className="features-section w-100 py-5 animate__animated animate__fadeInUp">
           <div className="container">
             <h2 className="text-center fw-bold mb-5 text-gradient" style={{fontSize: '2.5rem'}}>Why SkillSwap?</h2>
-            <div className="row g-4">
+            <div className="row g-5">
               <div className="col-md-4">
-                <div className="card h-100 border-0 shadow feature-card text-center p-4 animate__animated animate__zoomIn" style={{background: '#fff'}}>
+                <div className="card h-100 border-0 shadow feature-card text-center p-4 animate__animated animate__zoomIn" style={{background: '#fff', margin: '1rem'}}>
                   <div className="mb-3"><i className="bi bi-search fs-1 text-primary"></i></div>
                   <h5 className="fw-bold mb-2">Skill Discovery</h5>
                   <p className="text-secondary">Find people by skill, location, rating, or availability. Connect with the right match for your learning journey.</p>
                 </div>
               </div>
               <div className="col-md-4">
-                <div className="card h-100 border-0 shadow feature-card text-center p-4 animate__animated animate__zoomIn" style={{background: '#fff'}}>
+                <div className="card h-100 border-0 shadow feature-card text-center p-4 animate__animated animate__zoomIn" style={{background: '#fff', margin: '1rem'}}>
                   <div className="mb-3"><i className="bi bi-clock-history fs-1 text-success"></i></div>
                   <h5 className="fw-bold mb-2">Time Credits</h5>
                   <p className="text-secondary">Earn credits for teaching, spend them to learn. Your time is your currency—track it in your wallet dashboard.</p>
                 </div>
               </div>
               <div className="col-md-4">
-                <div className="card h-100 border-0 shadow feature-card text-center p-4 animate__animated animate__zoomIn" style={{background: '#fff'}}>
+                <div className="card h-100 border-0 shadow feature-card text-center p-4 animate__animated animate__zoomIn" style={{background: '#fff', margin: '1rem'}}>
                   <div className="mb-3"><i className="bi bi-chat-dots fs-1 text-info"></i></div>
                   <h5 className="fw-bold mb-2">Secure Chat</h5>
                   <p className="text-secondary">Communicate safely after a swap is accepted. Share files, schedule video calls, and stay connected.</p>
                 </div>
               </div>
               <div className="col-md-4">
-                <div className="card h-100 border-0 shadow feature-card text-center p-4 animate__animated animate__zoomIn" style={{background: '#fff'}}>
+                <div className="card h-100 border-0 shadow feature-card text-center p-4 animate__animated animate__zoomIn" style={{background: '#fff', margin: '1rem'}}>
                   <div className="mb-3"><i className="bi bi-calendar-check fs-1 text-warning"></i></div>
                   <h5 className="fw-bold mb-2">Swap Calendar</h5>
                   <p className="text-secondary">All your swaps are organized in a calendar. Never miss a session with reminders and notifications.</p>
                 </div>
               </div>
               <div className="col-md-4">
-                <div className="card h-100 border-0 shadow feature-card text-center p-4 animate__animated animate__zoomIn" style={{background: '#fff'}}>
+                <div className="card h-100 border-0 shadow feature-card text-center p-4 animate__animated animate__zoomIn" style={{background: '#fff', margin: '1rem'}}>
                   <div className="mb-3"><i className="bi bi-star-half fs-1 text-danger"></i></div>
                   <h5 className="fw-bold mb-2">Ratings & Reviews</h5>
                   <p className="text-secondary">Build your reputation. Rate and review after every session to help others find the best matches.</p>
                 </div>
               </div>
               <div className="col-md-4">
-                <div className="card h-100 border-0 shadow feature-card text-center p-4 animate__animated animate__zoomIn" style={{background: '#fff'}}>
+                <div className="card h-100 border-0 shadow feature-card text-center p-4 animate__animated animate__zoomIn" style={{background: '#fff', margin: '1rem'}}>
                   <div className="mb-3"><i className="bi bi-shield-lock fs-1 text-primary"></i></div>
                   <h5 className="fw-bold mb-2">Admin Protection</h5>
                   <p className="text-secondary">Our admin team keeps the platform safe. Accounts are verified, and abuse is monitored for your security.</p>
@@ -355,23 +495,23 @@ function LandingPage() {
         <section className="w-100 py-5 animate__animated animate__fadeInUp">
           <div className="container">
             <h2 className="text-center fw-bold mb-5" style={{color:'#185a9d'}}>How It Works</h2>
-            <div className="row g-4 justify-content-center">
+            <div className="row g-5 justify-content-center">
               <div className="col-md-3">
-                <div className="card howit-card border-0 shadow text-center p-4 h-100">
+                <div className="card border-0 shadow text-center p-4 h-100" style={{margin: '1rem'}}>
                   <div className="mb-3"><i className="bi bi-person-plus fs-1 text-primary"></i></div>
                   <h5 className="fw-bold mb-2">Sign Up</h5>
                   <p className="text-secondary">Create your free account and set up your profile with skills you can teach and want to learn.</p>
                 </div>
               </div>
               <div className="col-md-3">
-                <div className="card border-0 shadow text-center p-4 h-100">
+                <div className="card border-0 shadow text-center p-4 h-100" style={{margin: '1rem'}}>
                   <div className="mb-3"><i className="bi bi-search-heart fs-1 text-success"></i></div>
                   <h5 className="fw-bold mb-2">Discover</h5>
                   <p className="text-secondary">Browse and filter users by skills, location, and availability to find your perfect match.</p>
                 </div>
               </div>
               <div className="col-md-3">
-                <div className="card border-0 shadow text-center p-4 h-100">
+                <div className="card border-0 shadow text-center p-4 h-100" style={{margin: '1rem'}}>
                   <div className="mb-3"><i className="bi bi-arrow-repeat fs-1 text-info"></i></div>
                   <h5 className="fw-bold mb-2">Swap & Learn</h5>
                   <p className="text-secondary">Send a swap request, agree on a time, and start exchanging skills. Earn and spend time credits!</p>
@@ -398,17 +538,12 @@ function LandingPage() {
               <div className="community-highlight">
                 <div className="icon"><i className="bi bi-chat-quote"></i></div>
                 <h5>Real Success Stories</h5>
-                <p>“I learned Spanish and taught guitar! The best way to grow and give back.” – Priya S.</p>
+                <p>"I learned Spanish and taught guitar! The best way to grow and give back." – Priya S.</p>
               </div>
             </div>
           </div>
         </section>
-        {/* FEEDBACK SECTION */}
-        <FeedbackForm />
       </main>
-      <footer className="py-3 text-center animate__animated animate__fadeInUp">
-        <div>© {new Date().getFullYear()} SkillSwap. All rights reserved.</div>
-      </footer>
     </div>
   );
 }

@@ -26,6 +26,15 @@ const UserProfile = () => {
   });
   const [sendingRequest, setSendingRequest] = useState(false);
 
+  // Normalize skill arrays for dropdowns (support objects with {name} or plain strings)
+  const normalizeSkillName = (skill) => (typeof skill === 'string' ? skill : (skill?.name || ''));
+  const teachableSkills = (() => {
+    if (Array.isArray(currentUser?.skills) && currentUser.skills.length > 0) return currentUser.skills;
+    if (Array.isArray(currentUser?.profile?.skills) && currentUser.profile.skills.length > 0) return currentUser.profile.skills;
+    return [];
+  })();
+  const learnableSkills = Array.isArray(user?.skills) ? user.skills : (Array.isArray(user?.profile?.skills) ? user.profile.skills : []);
+
   useEffect(() => {
     loadUserProfile();
   }, [userId, token]);
@@ -404,10 +413,14 @@ const UserProfile = () => {
                       onChange={(e) => setSwapRequest({...swapRequest, skillToTeach: e.target.value})}
                     >
                       <option value="">Select a skill you can teach</option>
-                      {currentUser?.skills?.map((skill, idx) => (
-                        <option key={idx} value={skill.name}>{skill.name}</option>
-                      ))}
+                      {teachableSkills.map((skill, idx) => {
+                        const name = normalizeSkillName(skill);
+                        return name ? <option key={`${name}-${idx}`} value={name}>{name}</option> : null;
+                      })}
                     </select>
+                    {teachableSkills.length === 0 && (
+                      <small className="text-muted">No skills found. Add skills you can teach in your profile.</small>
+                    )}
                   </div>
 
                   <div className="mb-3">
@@ -418,9 +431,10 @@ const UserProfile = () => {
                       onChange={(e) => setSwapRequest({...swapRequest, skillToLearn: e.target.value})}
                     >
                       <option value="">Select a skill you want to learn</option>
-                      {user.skills?.map((skill, idx) => (
-                        <option key={idx} value={skill.name}>{skill.name}</option>
-                      ))}
+                      {learnableSkills.map((skill, idx) => {
+                        const name = normalizeSkillName(skill);
+                        return name ? <option key={`${name}-${idx}`} value={name}>{name}</option> : null;
+                      })}
                     </select>
                   </div>
 

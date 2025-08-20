@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaUserCircle, FaEdit, FaSave, FaTools, FaLightbulb, FaWallet, FaCalendarAlt, FaStar, FaCamera, FaMedal, FaShareAlt, FaCog, FaLink, FaCopy, FaBell, FaCheckCircle, FaExchangeAlt, FaComments, FaPlus, FaTrash, FaTimes, FaClock } from 'react-icons/fa';
+import { FaUserCircle, FaEdit, FaSave, FaTools, FaLightbulb, FaWallet, FaCalendarAlt, FaStar, FaCamera, FaMedal, FaShareAlt, FaCog, FaLink, FaCopy, FaBell, FaCheckCircle, FaExchangeAlt, FaComments, FaPlus, FaTrash, FaTimes, FaClock, FaSignOutAlt } from 'react-icons/fa';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../hooks/useSocket';
@@ -17,7 +17,6 @@ const tabList = [
   { key: 'wants', label: 'Skills I Want', icon: <FaLightbulb /> },
   { key: 'links', label: 'My Links', icon: <FaLink /> },
   { key: 'wallet', label: 'My Time Balance', icon: <FaWallet /> },
-  { key: 'swaps', label: 'My Swaps', icon: <FaCalendarAlt /> },
   { key: 'webinars', label: 'Webinars', icon: <FaCamera /> },
   { key: 'reputation', label: 'Reputation', icon: <FaStar /> },
   { key: 'badges', label: 'Achievements', icon: <FaMedal /> },
@@ -29,7 +28,7 @@ const tabList = [
 
 const Dashboard = () => {
   const location = useLocation();
-  const { user: authUser, token, fetchUnreadCount } = useAuth();
+  const { user: authUser, token, fetchUnreadCount, logout } = useAuth();
   const { socket } = useSocket();
   
   // User data state - starts empty
@@ -1012,281 +1011,21 @@ const Dashboard = () => {
                     <p className="text-muted">
                       <small>💡 Tip: Add your portfolio, LinkedIn, GitHub, or other professional links to help others discover your work!</small>
                     </p>
-                  </div>
-                </div>
-              )}
-
-                             {activeTab==='swaps' && (
-                 <div>
-                   <h5 className="mb-3">Your Swaps</h5>
-                   <div className="text-center text-secondary py-4">
-                     <FaExchangeAlt size={48} className="mb-3" />
-                     <p>Manage your skill swaps and track your exchanges!</p>
-                     <a href="/swaps" className="btn btn-primary">
-                       <FaExchangeAlt className="me-2" />
-                       View My Swaps
-                     </a>
                    </div>
                  </div>
                )}
 
               {activeTab==='webinars' && (
                 <div>
-                  <div className="d-flex justify-content-between align-items-center mb-3">
-                    <h5>Webinar Management</h5>
-                    <button 
-                      className="btn btn-primary"
-                      onClick={() => setShowCreateWebinar(true)}
-                    >
-                      <FaPlus className="me-2" />
-                      Host New Webinar
-                    </button>
-                  </div>
-
-                  {/* Create Webinar Modal */}
-                  {showCreateWebinar && (
-                    <div className="modal fade show d-block" style={{backgroundColor: 'rgba(0,0,0,0.5)'}}>
-                      <div className="modal-dialog modal-lg">
-                        <div className="modal-content">
-                          <div className="modal-header">
-                            <h5 className="modal-title">{editingWebinarId ? 'Edit Webinar' : 'Host New Webinar'}</h5>
-                            <button 
-                              type="button" 
-                              className="btn-close" 
-                              onClick={() => {
-                                setShowCreateWebinar(false);
-                                setEditingWebinarId(null);
-                                setWebinarForm({
-                                  title: '',
-                                  description: '',
-                                  topic: '',
-                                  scheduledDate: '',
-                                  duration: 60,
-                                  maxParticipants: 50,
-                                  tags: [],
-                                  isPublic: true,
-                                  price: 0
-                                });
-                              }}
-                            ></button>
-                          </div>
-                          <div className="modal-body">
-                            <div className="row">
-                              <div className="col-md-6 mb-3">
-                                <label className="form-label">Title *</label>
-                                <input 
-                                  type="text" 
-                                  className="form-control"
-                                  value={webinarForm.title}
-                                  onChange={(e) => handleWebinarFormChange('title', e.target.value)}
-                                  placeholder="Enter webinar title"
-                                />
-                              </div>
-                              <div className="col-md-6 mb-3">
-                                <label className="form-label">Topic *</label>
-                                <input 
-                                  type="text" 
-                                  className="form-control"
-                                  value={webinarForm.topic}
-                                  onChange={(e) => handleWebinarFormChange('topic', e.target.value)}
-                                  placeholder="e.g., JavaScript, Design, Marketing"
-                                />
-                              </div>
-                            </div>
-                            <div className="mb-3">
-                              <label className="form-label">Description *</label>
-                              <textarea 
-                                className="form-control"
-                                rows="3"
-                                value={webinarForm.description}
-                                onChange={(e) => handleWebinarFormChange('description', e.target.value)}
-                                placeholder="Describe what participants will learn..."
-                              />
-                            </div>
-                            <div className="row">
-                              <div className="col-md-6 mb-3">
-                                <label className="form-label">Scheduled Date & Time *</label>
-                                <input 
-                                  type="datetime-local" 
-                                  className="form-control"
-                                  value={webinarForm.scheduledDate}
-                                  onChange={(e) => handleWebinarFormChange('scheduledDate', e.target.value)}
-                                />
-                              </div>
-                              <div className="col-md-6 mb-3">
-                                <label className="form-label">Duration (minutes) *</label>
-                                <input 
-                                  type="number" 
-                                  className="form-control"
-                                  value={webinarForm.duration}
-                                  onChange={(e) => handleWebinarFormChange('duration', parseInt(e.target.value))}
-                                  min="15"
-                                  max="480"
-                                />
-                              </div>
-                            </div>
-                            <div className="row">
-                              <div className="col-md-6 mb-3">
-                                <label className="form-label">Max Participants</label>
-                                <input 
-                                  type="number" 
-                                  className="form-control"
-                                  value={webinarForm.maxParticipants}
-                                  onChange={(e) => handleWebinarFormChange('maxParticipants', parseInt(e.target.value))}
-                                  min="1"
-                                  max="1000"
-                                />
-                              </div>
-                              <div className="col-md-6 mb-3">
-                                <label className="form-label">Price (0 = Free)</label>
-                                <input 
-                                  type="number" 
-                                  className="form-control"
-                                  value={webinarForm.price}
-                                  onChange={(e) => handleWebinarFormChange('price', parseFloat(e.target.value))}
-                                  min="0"
-                                  step="0.01"
-                                />
-                              </div>
-                            </div>
-                            <div className="mb-3">
-                              <div className="form-check">
-                                <input 
-                                  className="form-check-input"
-                                  type="checkbox"
-                                  checked={webinarForm.isPublic}
-                                  onChange={(e) => handleWebinarFormChange('isPublic', e.target.checked)}
-                                />
-                                <label className="form-check-label">
-                                  Make this webinar public
-                                </label>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="modal-footer">
-                            <button 
-                              type="button" 
-                              className="btn btn-secondary" 
-                              onClick={() => setShowCreateWebinar(false)}
-                            >
-                              Cancel
-                            </button>
-                            <button 
-                              type="button" 
-                              className="btn btn-primary"
-                              onClick={handleCreateWebinar}
-                              disabled={saving || !webinarForm.title || !webinarForm.description || !webinarForm.topic || !webinarForm.scheduledDate}
-                            >
-                              {saving ? (editingWebinarId ? 'Updating...' : 'Creating...') : (editingWebinarId ? 'Update Webinar' : 'Create Webinar')}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* My Webinars */}
-                  <div className="mb-4">
-                    <h6 className="mb-3">My Webinars</h6>
-                    {webinarsLoading ? (
-                      <div className="text-center py-4">
-                        <div className="spinner-border text-primary" role="status">
-                          <span className="visually-hidden">Loading...</span>
-                        </div>
-                      </div>
-                    ) : myWebinars.length === 0 ? (
+                   <h5 className="mb-3">Your Webinars</h5>
                       <div className="text-center text-secondary py-4">
                         <FaCamera size={48} className="mb-3" />
-                        <p>You haven't hosted any webinars yet.</p>
-                        <button 
-                          className="btn btn-primary"
-                          onClick={() => setShowCreateWebinar(true)}
-                        >
-                          Host Your First Webinar
-                        </button>
+                     <p>Manage your webinars and track your sessions!</p>
+                     <a href="/webinars" className="btn btn-primary">
+                       <FaCamera className="me-2" />
+                       View My Webinars
+                     </a>
                       </div>
-                    ) : (
-                      <div className="row g-3">
-                        {myWebinars.map(webinar => (
-                          <div key={webinar._id} className="col-md-6 col-lg-4">
-                            <div className="card border-0 shadow-sm h-100">
-                              <div className="card-body">
-                                <div className="d-flex justify-content-between align-items-start mb-2">
-                                  <span className={`badge ${webinar.status === 'upcoming' ? 'bg-primary' : webinar.status === 'live' ? 'bg-success' : webinar.status === 'completed' ? 'bg-secondary' : 'bg-danger'}`}>
-                                    {webinar.status}
-                                  </span>
-                                  <small className="text-muted">
-                                    {new Date(webinar.scheduledDate).toLocaleDateString()}
-                                  </small>
-                                </div>
-                                <h6 className="card-title">{webinar.title}</h6>
-                                <p className="card-text text-secondary small">{webinar.description.substring(0, 100)}...</p>
-                                <div className="d-flex justify-content-between align-items-center">
-                                  <small className="text-muted">
-                                    {webinar.currentParticipants}/{webinar.maxParticipants} participants
-                                  </small>
-                                  <small className="text-muted">
-                                    {webinar.duration} min
-                                  </small>
-                                </div>
-                              </div>
-                              <div className="card-footer bg-transparent">
-                                <div className="d-flex gap-2 mb-2">
-                                  <button 
-                                    className="btn btn-sm btn-outline-primary flex-fill"
-                                    onClick={() => handleEditWebinar(webinar._id)}
-                                  >
-                                    Edit
-                                  </button>
-                                  <button 
-                                    className="btn btn-sm btn-outline-danger"
-                                    onClick={() => handleDeleteWebinar(webinar._id)}
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                                {webinar.meetingLink && (
-                                  <div className="d-flex gap-2">
-                                    <button 
-                                      className="btn btn-sm btn-success flex-fill"
-                                      onClick={() => {
-                                        const meetCode = webinar.meetingLink.split('/').pop();
-                                        const instructions = `To start your webinar meeting:
-
-1. Click "OK" to open Google Meet
-2. When Google Meet opens, click "Create meeting"
-3. Copy this meeting code: ${meetCode}
-4. Share this code with participants: ${webinar.meetingLink}
-
-Participants can join using the same link.`;
-                                        
-                                        if (confirm(instructions)) {
-                                          window.open('https://meet.google.com', '_blank');
-                                        }
-                                      }}
-                                    >
-                                      Start Meeting
-                                    </button>
-                                    <button 
-                                      className="btn btn-sm btn-outline-secondary"
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(webinar.meetingLink);
-                                        setSuccess('Google Meet link copied to clipboard!');
-                                      }}
-                                    >
-                                      Copy Link
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-
                 </div>
               )}
 
@@ -1679,6 +1418,18 @@ Participants can join using the same link.`;
               )}
             </div>
           </div>
+        </div>
+        
+        {/* Logout Section */}
+        <div className="text-center mt-5 pt-4 border-top">
+          <button 
+            className="btn btn-outline-danger btn-lg px-5"
+            onClick={logout}
+            style={{ borderRadius: '2rem' }}
+          >
+            <FaSignOutAlt className="me-2" />
+            Logout
+          </button>
         </div>
       </div>
     </div>
