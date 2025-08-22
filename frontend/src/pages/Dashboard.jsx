@@ -542,6 +542,8 @@ const Dashboard = () => {
         lastName: profileForm.name.split(' ').slice(1).join(' ') || authUser.lastName,
         bio: profileForm.bio,
         location: profileForm.city,
+        age: profileForm.age,
+        language: profileForm.language,
         profilePicture: profilePicPreview,
         links: profileForm.links
       };
@@ -558,13 +560,22 @@ const Dashboard = () => {
          });
          setEditProfile(false);
          setSuccess('Profile updated successfully!');
+         if (window.showNotification) {
+           window.showNotification('Profile updated successfully!', 'success', 4000);
+         }
          setTimeout(() => setSuccess(''), 3000);
        } else {
         setError(result.error || 'Failed to update profile');
+        if (window.showNotification) {
+          window.showNotification(result.error || 'Failed to update profile', 'error', 4000);
+        }
       }
     } catch (error) {
       setError('Error updating profile');
       console.error('Error updating profile:', error);
+      if (window.showNotification) {
+        window.showNotification('Error updating profile', 'error', 4000);
+      }
     } finally {
       setSaving(false);
     }
@@ -607,13 +618,22 @@ const Dashboard = () => {
       
              if (result.success) {
          setSuccess('Skills updated successfully!');
+         if (window.showNotification) {
+           window.showNotification('Skills updated successfully!', 'success', 4000);
+         }
          setTimeout(() => setSuccess(''), 3000);
        } else {
         setError(result.error || 'Failed to update skills');
+        if (window.showNotification) {
+          window.showNotification(result.error || 'Failed to update skills', 'error', 4000);
+        }
       }
     } catch (error) {
       setError('Error updating skills');
       console.error('Error updating skills:', error);
+      if (window.showNotification) {
+        window.showNotification('Error updating skills', 'error', 4000);
+      }
     } finally {
       setSaving(false);
     }
@@ -856,6 +876,10 @@ const Dashboard = () => {
               ) : (
                 <>
                   <h4 className="fw-bold mb-1">{user.name || 'Your Name'}</h4>
+                  <div className="mb-2 text-white small">
+                    <div>@{authUser?.username || 'username'}</div>
+                    <div>{authUser?.email || 'email@example.com'}</div>
+                  </div>
                   <div className="mb-2">{user.bio || 'No bio yet. Click edit to add one!'}</div>
                   <div className="mb-2">
                     {user.city && <span className="badge bg-light text-primary me-2">{user.city}</span>}

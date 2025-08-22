@@ -78,7 +78,7 @@ router.put('/profile', [
   body('lastName').optional().trim().isLength({ min: 1, max: 50 }),
   body('bio').optional().trim().isLength({ max: 500 }),
   body('location').optional().trim(),
-  body('age').optional().isInt({ min: 13, max: 120 }),
+  body('age').optional().isInt({ min: 13, max: 120 }).withMessage('Age must be between 13 and 120'),
   body('language').optional().trim(),
   body('profilePicture').optional().trim(),
   body('links').optional().isArray()
@@ -108,7 +108,11 @@ router.put('/profile', [
     if (lastName) user.lastName = lastName;
     if (bio !== undefined) user.bio = bio;
     if (location !== undefined) user.location = location;
-    if (age !== undefined) user.age = age;
+    if (age !== undefined && age !== '') {
+      user.age = parseInt(age, 10);
+    } else if (age === '') {
+      user.age = null;
+    }
     if (language !== undefined) user.language = language;
     if (profilePicture !== undefined) user.profilePicture = profilePicture;
     if (links !== undefined) user.links = links;
@@ -163,7 +167,7 @@ router.put('/profile', [
       }
     });
   } catch (error) {
-    console.error('Update profile error:', error);
+    console.error('Profile update error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

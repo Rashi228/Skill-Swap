@@ -22,7 +22,7 @@ import WebinarDiscovery from './components/WebinarDiscovery';
 import WebinarSessionManager from './components/WebinarSessionManager';
 import Webinars from './pages/Webinars';
 import WebinarManager from './pages/WebinarManager';
-
+import NotificationManager from './components/NotificationManager';
 
 import { Container, Nav, Navbar as RBNavbar, Button, Offcanvas } from 'react-bootstrap';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -41,61 +41,59 @@ function Navbar() {
           SkillSwap
         </RBNavbar.Brand>
 
-        {/* Mobile right controls */}
-        <div className="ms-auto d-lg-none">
-          {isAuthenticated ? (
-            <Button variant="outline-light" className="px-3" onClick={() => setShowMenu(true)} aria-label="Open menu">
-              <i className="bi bi-list" style={{ fontSize: '1.25rem' }}></i>
-            </Button>
-          ) : (
-            <Button as={Link} to="/login" variant="outline-light" className="px-4">Sign In</Button>
-          )}
-        </div>
+        {/* Mobile hamburger menu */}
+        <RBNavbar.Toggle 
+          aria-controls="offcanvasNavbar" 
+          className="d-lg-none"
+          onClick={() => setShowMenu(true)}
+        />
 
         {/* Desktop nav */}
-        <Nav className="align-items-center d-none d-lg-flex">
-          {isAuthenticated ? (
-            <>
-              <Nav.Link as={Link} to="/dashboard">Dashboard</Nav.Link>
-              <Nav.Link as={Link} to="/users">Discover Users</Nav.Link>
-              {/* <Nav.Link as={Link} to="/webinars">Webinars</Nav.Link> */}
-              <Nav.Link as={Link} to="/wallet">Wallet</Nav.Link>
-              <Nav.Item className="ms-2">
-                <div className="d-flex align-items-center">
-                  <div 
-                    className="profile-pic-nav me-2" 
-                    onClick={() => navigate('/profile')}
-                    style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '50%',
-                      background: user?.profilePic ? `url(${user.profilePic})` : '#ffffff',
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                      border: '2px solid #ffffff',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#1e3a8a',
-                      fontSize: '1.2rem',
-                      fontWeight: 'bold'
-                    }}
-                    title="View Profile"
-                  >
-                    {!user?.profilePic && (user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U')}
+        <RBNavbar.Collapse id="offcanvasNavbar" className="d-none d-lg-flex justify-content-end">
+          <Nav className="align-items-center">
+            {isAuthenticated ? (
+              <>
+                <Nav.Link as={Link} to="/dashboard">Dashboard</Nav.Link>
+                <Nav.Link as={Link} to="/users">Discover Users</Nav.Link>
+                {/* <Nav.Link as={Link} to="/webinars">Webinars</Nav.Link> */}
+                <Nav.Link as={Link} to="/wallet">Wallet</Nav.Link>
+                <Nav.Item className="ms-3">
+                  <div className="d-flex align-items-center">
+                    <div 
+                      className="profile-pic-nav me-2" 
+                      onClick={() => navigate('/profile')}
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        background: user?.profilePic ? `url(${user.profilePic})` : '#ffffff',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        border: '2px solid #ffffff',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#1e3a8a',
+                        fontSize: '1.2rem',
+                        fontWeight: 'bold'
+                      }}
+                      title="View Profile"
+                    >
+                      {!user?.profilePic && (user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U')}
+                    </div>
                   </div>
-                </div>
-              </Nav.Item>
-            </>
-          ) : (
-            <>
-              <Nav.Item className="ms-2">
-                <Button as={Link} to="/login" variant="outline-light" className="px-4">Sign In</Button>
-              </Nav.Item>
-            </>
-          )}
-        </Nav>
+                </Nav.Item>
+              </>
+            ) : (
+              <>
+                <Nav.Item>
+                  <Button as={Link} to="/login" variant="outline-light" className="px-4">Sign In</Button>
+                </Nav.Item>
+              </>
+            )}
+          </Nav>
+        </RBNavbar.Collapse>
       </Container>
 
       {/* Mobile sidebar menu */}
@@ -278,25 +276,14 @@ function App() {
               </ProtectedRoute>
             } />
             <Route path="/webinars" element={<Webinars />} />
-            <Route path="/webinar-manager" element={<WebinarManager />} />
-
-            
-            {/* Future routes for Privacy, Terms, etc. */}
+            <Route path="/webinar-manager" element={
+              <ProtectedRoute>
+                <WebinarManager />
+              </ProtectedRoute>
+            } />
           </Routes>
         </Layout>
-              {/* Webinar Modals */}
-        {showWebinarHost && (
-          <WebinarHost 
-            sessionId="demo-session" 
-            onClose={() => setShowWebinarHost(false)} 
-          />
-        )}
-        {showWebinarParticipant && selectedWebinar && (
-          <WebinarParticipant 
-            sessionId={selectedWebinar.id} 
-            onLeave={() => setShowWebinarParticipant(false)} 
-          />
-        )}
+        <NotificationManager />
         </Router>
       </SocketProvider>
     </AuthProvider>

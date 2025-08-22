@@ -27,17 +27,13 @@ const Login = () => {
       const data = await res.json();
       if (!res.ok) {
         if (data.error && data.error.toLowerCase().includes('credentials')) {
-          setError('Account does not exist or password is incorrect.');
+          setError('Invalid email or password. Please try again.');
         } else if (data.error && data.error.toLowerCase().includes('deactivated')) {
           setError('Account is deactivated.');
         } else {
           setError(data.error || 'Login failed');
         }
         setLoading(false);
-        // If account does not exist, redirect to register after 1.5s
-        if (data.error && data.error.toLowerCase().includes('credentials')) {
-          setTimeout(() => navigate('/register'), 1500);
-        }
         return;
       }
       if (data.token) {
