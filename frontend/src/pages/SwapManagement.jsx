@@ -63,7 +63,9 @@ const SwapManagement = () => {
       // Reload swaps to show new request
       loadSwaps();
       // Show notification
-      alert(`New swap request from ${data.fromUser.firstName} ${data.fromUser.lastName}!`);
+      if (window.showNotification) {
+        window.showNotification(`New swap request from ${data.fromUser.firstName} ${data.fromUser.lastName}!`, 'info', 4000);
+      }
     };
 
     // Listen for swap responses
@@ -72,7 +74,9 @@ const SwapManagement = () => {
       // Reload swaps to show updated status
       loadSwaps();
       // Show notification
-      alert(`Your swap request has been ${data.action}!`);
+      if (window.showNotification) {
+        window.showNotification(`Your swap request has been ${data.action}!`, 'info', 4000);
+      }
     };
 
     socket.on('new_swap_request', handleNewSwapRequest);
@@ -93,13 +97,21 @@ const SwapManagement = () => {
       if (result.success) {
         // Reload swaps to get updated data
         loadSwaps();
-        alert(`Swap request ${action}ed successfully!`);
+        if (window.showNotification) {
+          window.showNotification(`Swap request ${action}ed successfully!`, 'success', 4000);
+        }
       } else {
         setError(result.error || 'Failed to respond to swap request');
+        if (window.showNotification) {
+          window.showNotification(result.error || 'Failed to respond to swap request', 'error', 4000);
+        }
       }
     } catch (error) {
       setError('Error responding to swap request');
       console.error('Error responding to swap:', error);
+      if (window.showNotification) {
+        window.showNotification('Error responding to swap request', 'error', 4000);
+      }
     }
   };
 
@@ -111,13 +123,21 @@ const SwapManagement = () => {
       
       if (result.success) {
         loadSwaps();
-        alert('Swap cancelled successfully!');
+        if (window.showNotification) {
+          window.showNotification('Swap cancelled successfully!', 'success', 4000);
+        }
       } else {
         setError(result.error || 'Failed to cancel swap');
+        if (window.showNotification) {
+          window.showNotification(result.error || 'Failed to cancel swap', 'error', 4000);
+        }
       }
     } catch (error) {
       setError('Error cancelling swap');
       console.error('Error cancelling swap:', error);
+      if (window.showNotification) {
+        window.showNotification('Error cancelling swap', 'error', 4000);
+      }
     }
   };
 
@@ -129,13 +149,21 @@ const SwapManagement = () => {
       
       if (result.success) {
         loadSwaps();
-        alert('Swap marked as completed!');
+        if (window.showNotification) {
+          window.showNotification('Swap marked as completed!', 'success', 4000);
+        }
       } else {
         setError(result.error || 'Failed to complete swap');
+        if (window.showNotification) {
+          window.showNotification(result.error || 'Failed to complete swap', 'error', 4000);
+        }
       }
     } catch (error) {
       setError('Error completing swap');
       console.error('Error completing swap:', error);
+      if (window.showNotification) {
+        window.showNotification('Error completing swap', 'error', 4000);
+      }
     }
   };
 
@@ -234,12 +262,17 @@ const SwapManagement = () => {
 
   const getSwapRole = (swap) => {
     if (!user || !swap) return 'viewer';
-    const currentUserId = user._id?.toString?.() || user._id;
-    const requesterId = (swap.requester?._id || swap.requester)?.toString?.() || '';
-    const recipientId = (swap.recipient?._id || swap.recipient)?.toString?.() || '';
-    if (requesterId && requesterId === currentUserId) return 'requester';
-    if (recipientId && recipientId === currentUserId) return 'recipient';
-    return 'viewer';
+    return swap.requester._id === user._id ? 'requester' : 'recipient';
+  };
+
+  const getOtherUser = (swap) => {
+    if (!user || !swap) return null;
+    return swap.requester._id === user._id ? swap.recipient : swap.requester;
+  };
+
+  const getSwapRoleText = (swap) => {
+    if (!user || !swap) return '';
+    return swap.requester._id === user._id ? 'You requested' : 'Requested from you';
   };
 
   if (loading && swaps.length === 0) {
@@ -259,35 +292,28 @@ const SwapManagement = () => {
         <div className="text-center mb-5">
           <h1 className="fw-bold mb-3" style={{color:'#185a9d'}}>Dashboard</h1>
           <p className="text-secondary">Manage your skill swap requests and ongoing exchanges</p>
+          <div className="mt-3">
+            <a href="/users" className="btn btn-primary">
+              <FaExchangeAlt className="me-2" />
+              Send Swap Request
+            </a>
+          </div>
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-4 shadow p-4 mb-4">
-          <div className="d-flex gap-2 flex-wrap">
-            <button
-              className={`btn ${activeTab === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={() => setActiveTab('all')}
-            >
-              All Swaps
-            </button>
-            <button
-              className={`btn ${activeTab === 'pending' ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={() => setActiveTab('pending')}
-            >
-              Pending
-            </button>
-            <button
-              className={`btn ${activeTab === 'accepted' ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={() => setActiveTab('accepted')}
-            >
-              Active
-            </button>
-            <button
-              className={`btn ${activeTab === 'completed' ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={() => setActiveTab('completed')}
-            >
-              Completed
-            </button>
+        <div className="row mb-4">
+          <div className="col-12">
+            <div className="d-flex gap-2 flex-wrap">
+              {['all', 'pending', 'accepted', 'completed'].map(tab => (
+                <button
+                  key={tab}
+                  className={`btn ${activeTab === tab ? 'btn-primary' : 'btn-outline-primary'} text-capitalize`}
+                  onClick={() => setActiveTab(tab)}
+                >
+                  {tab === 'all' ? 'All Swaps' : tab}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -324,10 +350,10 @@ const SwapManagement = () => {
                       <div className="col-md-3">
                         <div className="d-flex align-items-center">
                           <div className="me-3">
-                            {swap.requester.profilePicture ? (
+                            {getOtherUser(swap)?.profilePicture ? (
                               <img
-                                src={swap.requester.profilePicture}
-                                alt={swap.requester.firstName}
+                                src={getOtherUser(swap).profilePicture}
+                                alt={getOtherUser(swap).firstName}
                                 className="rounded-circle"
                                 style={{width: '50px', height: '50px', objectFit: 'cover'}}
                               />
@@ -337,9 +363,10 @@ const SwapManagement = () => {
                           </div>
                           <div>
                             <h6 className="mb-1 fw-bold">
-                              {swap.requester.firstName} {swap.requester.lastName}
+                              {getOtherUser(swap)?.firstName} {getOtherUser(swap)?.lastName}
                             </h6>
-                            <small className="text-muted">@{swap.requester.username}</small>
+                            <small className="text-muted">@{getOtherUser(swap)?.username}</small>
+                            <div className="small text-muted">{getSwapRoleText(swap)}</div>
                           </div>
                         </div>
                       </div>

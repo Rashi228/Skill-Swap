@@ -109,6 +109,12 @@ const Chat = ({ conversationId, onClose }) => {
     const incoming = data.message;
     console.log('Processing incoming message:', incoming);
     
+    // Don't add the message if it's from the current user (already added locally)
+    if (isOwnMessage(incoming)) {
+      console.log('Message is from current user, skipping socket addition');
+      return;
+    }
+    
     setMessages(prev => {
       const already = prev.some(m => m._id === incoming._id);
       console.log('Message already exists:', already);

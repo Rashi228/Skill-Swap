@@ -87,14 +87,22 @@ const UserProfile = () => {
           message: swapRequest.message
         });
         
-        // Show success message
-        alert('Swap request sent successfully!');
+        // Show success notification
+        if (window.showNotification) {
+          window.showNotification('Swap request sent successfully!', 'success', 4000);
+        }
       } else {
         setError(result.error || 'Failed to send swap request');
+        if (window.showNotification) {
+          window.showNotification(result.error || 'Failed to send swap request', 'error', 4000);
+        }
       }
     } catch (error) {
       setError('Error sending swap request');
       console.error('Error sending swap request:', error);
+      if (window.showNotification) {
+        window.showNotification('Error sending swap request', 'error', 4000);
+      }
     } finally {
       setSendingRequest(false);
     }
@@ -135,7 +143,7 @@ const UserProfile = () => {
       <div className="container">
         {/* Back Button */}
         <div className="mb-4">
-          <button className="btn btn-outline-primary" onClick={() => navigate('/discover')}>
+          <button className="btn btn-outline-primary" onClick={() => navigate('/users')}>
             <FaArrowLeft className="me-2" />
             Back to Discovery
           </button>

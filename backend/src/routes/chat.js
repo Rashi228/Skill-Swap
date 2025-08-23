@@ -76,12 +76,15 @@ router.post('/conversations/:id/files', auth, upload.single('file'), async (req,
       
       console.log('Emitting file message to participants:', participantIds);
       participantIds.forEach((participantId) => {
-        console.log(`Emitting file to user_${participantId}`);
-        io.to(`user_${participantId}`).emit('message_received', {
-          conversationId: req.params.id,
-          message: message,
-          participants: participantIds
-        });
+        // Don't emit to the sender since they already have the message locally
+        if (participantId !== req.user._id.toString()) {
+          console.log(`Emitting file to user_${participantId}`);
+          io.to(`user_${participantId}`).emit('message_received', {
+            conversationId: req.params.id,
+            message: message,
+            participants: participantIds
+          });
+        }
       });
     } else {
       console.log('Socket.io not available for file message emission');
@@ -421,12 +424,15 @@ router.post('/conversations/:id/messages', [
 
       console.log('Emitting message to participants:', participantIds);
       participantIds.forEach((participantId) => {
-        console.log(`Emitting to user_${participantId}`);
-        io.to(`user_${participantId}`).emit('message_received', {
-          conversationId: req.params.id,
-          message: message,
-          participants: participantIds
-        });
+        // Don't emit to the sender since they already have the message locally
+        if (participantId !== req.user._id.toString()) {
+          console.log(`Emitting to user_${participantId}`);
+          io.to(`user_${participantId}`).emit('message_received', {
+            conversationId: req.params.id,
+            message: message,
+            participants: participantIds
+          });
+        }
       });
     } else {
       console.log('Socket.io not available for message emission');
