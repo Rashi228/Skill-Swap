@@ -54,14 +54,14 @@ const Login = () => {
           <h2 className="fw-bold mb-1" style={{color:'#185a9d'}}>Welcome Back!</h2>
           <p className="text-secondary mb-0">Login to your SkillSwap account</p>
         </div>
-        {/* Google Sign In Button */}
-        <div className="d-grid mb-3">
+        {/* Google Sign In Button - Commented out for now */}
+        {/* <div className="d-grid mb-3">
           <button type="button" className="btn btn-light border d-flex align-items-center justify-content-center gap-2 py-2" style={{fontWeight:600, fontSize:'1.05rem'}}>
             <img src="https://upload.wikimedia.org/wikipedia/commons/4/4a/Logo_2013_Google.png" alt="Google" style={{width:'22px', height:'22px'}} />
             Sign in with Google
           </button>
         </div>
-        <div className="text-center text-secondary mb-2" style={{fontSize:'0.95rem'}}>or login with email</div>
+        <div className="text-center text-secondary mb-2" style={{fontSize:'0.95rem'}}>or login with email</div> */}
         <form onSubmit={handleSubmit} autoComplete="off">
           <div className="mb-3">
             <label className="form-label">Email</label>

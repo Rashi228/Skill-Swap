@@ -4,16 +4,16 @@
 
 export const emailConfig = {
   // Your EmailJS service ID (found in Email Services section)
-  serviceId: 'YOUR_SERVICE_ID',
+  serviceId: 'service_vgt7nih',
   
   // Your EmailJS template ID (found in Email Templates section)
-  templateId: 'YOUR_TEMPLATE_ID',
+  templateId: 'template_x3obcut',
   
   // Your EmailJS public key (found in Account > API Keys section)
-  publicKey: 'YOUR_PUBLIC_KEY',
+  publicKey: 'kk1EwJi7EIZImeB0R',
   
   // Optional: Different template for feedback vs contact
-  feedbackTemplateId: 'YOUR_FEEDBACK_TEMPLATE_ID', // Can be same as templateId
+  feedbackTemplateId: 'template_x3obcut', // Can be same as templateId
 };
 
 // Template variables that will be available in your EmailJS templates:
