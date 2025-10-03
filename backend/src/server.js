@@ -19,7 +19,8 @@ const io = new Server(server, {
       'https://skill-swap-frontend-wbzv.onrender.com'
     ],
     credentials: true,
-    methods: ['GET', 'POST']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
   }
 });
 
